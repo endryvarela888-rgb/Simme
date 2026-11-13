@@ -17,17 +17,17 @@ El workflow crea una carpeta por commit en `/opt/simmer/releases/` y usa volúme
 
 ## Estado del VPS
 
-La captura identifica `vps-4caee504.vps.ovh.net` (`51.38.80.236`, Ubuntu 26.04, 2 vCPU y 4 GB RAM). La clave SSH local `gha_deploy_clean` inicia una acción forzada del proyecto `BeyondTheFrontier`; al probarla, se reconstruyó ese proyecto y siguieron activos su backend, PostgreSQL y Caddy. No se pudo inspeccionar su configuración ni sus volúmenes por SSH. Simmer usa el puerto loopback 8001 para no desplazar esos servicios por accidente.
+Simmer está desplegado en `https://simmer-api.duckdns.org`, con Caddy y un certificado válido de Let's Encrypt. `/api/v1/health/` responde `ok`; el catálogo sirve 757 recetas publicadas y sus imágenes. Los datos y secretos de producción están en volúmenes Docker y `/opt/simmer/shared/.env`; ese archivo no está en Git.
 
-La captura de OVH indica que no hay dominios configurados en ese VPS. Para mantener el presupuesto, se propone un subdominio gratuito de DuckDNS que apunte al VPS; Caddy puede obtener y renovar el certificado para ese nombre. El propietario debe registrar el subdominio disponible y completar `SIMMER_DOMAIN` en `.env` antes del despliegue. DuckDNS requiere una cuenta y entrega un token para actualizar el DNS; no compartirlo en el repositorio. Véanse [DuckDNS](https://www.duckdns.org/) y [Caddy Automatic HTTPS](https://caddyserver.com/docs/automatic-https).
+El backend anterior `BeyondTheFrontier` fue detenido y eliminado según la autorización del propietario: se borró su carpeta, sus cuatro volúmenes de PostgreSQL/Caddy/estáticos y sus imágenes Docker. El stack de Simmer usa volúmenes independientes.
+
+La clave SSH anterior `gha_deploy_clean` estaba restringida al despliegue de BeyondTheFrontier y no se reutiliza. Simmer tiene una clave de despliegue dedicada; su archivo privado permanece local en `.deploy/`, ignorado por Git.
 
 ## Primera configuración manual necesaria
 
-1. Conectar GitHub para crear el repositorio privado `Simmer` y subir los commits locales.
-2. Agregar la clave pública dedicada de Simmer al usuario de despliegue `ubuntu` (o a otro usuario aislado con Docker); configurar la clave privada y el `known_hosts` verificado como secretos de Actions.
-3. Registrar un subdominio gratuito y ejecutar `deploy/bootstrap-host.sh <subdominio>` en el VPS para crear el `.env` con secretos aleatorios en el servidor.
-4. Revisar el inventario y respaldo del proyecto anterior. Al arrancar Compose de Simmer se ocuparán los puertos 80/443, por lo que el Caddy antiguo se debe detener; sus volúmenes viejos se eliminarán solo tras confirmar que Simmer está saludable.
-5. Después habilitar `SIMMER_DEPLOY_ENABLED`.
+1. Crear/conectar el repositorio privado `Simmer` en GitHub y subir los commits locales.
+2. Añadir a GitHub Actions los secretos `SIMMER_HOST`, `SIMMER_USER`, `SIMMER_DEPLOY_KEY` y `SIMMER_KNOWN_HOSTS`, además de la variable `SIMMER_DEPLOY_ENABLED=true`.
+3. Ejecutar el workflow CI y el primer despliegue desde `main`.
 
 ## URL de producción en Android
 
