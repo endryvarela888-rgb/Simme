@@ -4,7 +4,9 @@ Simmer es una app Android de recetas que requiere iniciar sesión. La app consul
 
 ## Estado
 
-Este primer corte prepara el backend Django/DRF, PostgreSQL en Docker, un importador de TheMealDB y un cliente Android Compose. El catálogo móvil, las cuentas integradas, los favoritos sincronizados, los anuncios y la publicación aún requieren configurar servicios externos y ejecutar la app en el SDK/emulador. No se deben considerar verificados hasta arrancar el entorno.
+Primer corte funcional: backend Django/DRF y PostgreSQL en Docker, 790 recetas importadas (757 publicadas tras la revisión de pasos), endpoints de salud/catálogo/cuentas/favoritos y cliente Android Compose con acceso obligatorio por email, búsqueda, categorías, favoritos, detalle y modo cocinar. El backend local se levantó y la API respondió correctamente.
+
+Aún falta generar y abrir el APK en Android SDK/emulador; la máquina local no tiene Android SDK configurado. Google login, anuncios, compras de monedas, chef de IA, i18n, dominio TLS, CI/CD remoto y publicación siguen pendientes. Véase [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) para el estado del VPS y requisitos de despliegue.
 
 ## Desarrollo local
 

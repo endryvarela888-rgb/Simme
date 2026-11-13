@@ -1,0 +1,53 @@
+services:
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-simmer}
+      POSTGRES_USER: ${POSTGRES_USER:-simmer}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in /opt/simmer/shared/.env}
+    volumes:
+      - simmer_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    networks: [private]
+
+  web:
+    build:
+      context: ../backend
+    restart: unless-stopped
+    env_file:
+      - ${SIMMER_ENV_FILE:?Set SIMMER_ENV_FILE to the production environment file}
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-simmer}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-simmer}
+      DJANGO_DEBUG: "False"
+      MEDIA_ROOT: /data/media
+    command: ["sh", "-c", "python manage.py migrate --noinput && python manage.py collectstatic --noinput && gunicorn config.wsgi:application --bind 0.0.0.0:8000 --workers 2 --timeout 60"]
+    ports:
+      - "127.0.0.1:${SIMMER_BIND_PORT:-8001}:8000"
+    volumes:
+      - simmer_recipe_media:/data/media
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/v1/health/', timeout=3)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    networks: [private]
+
+volumes:
+  simmer_postgres_data:
+    name: simmer_postgres_data
+  simmer_recipe_media:
+    name: simmer_recipe_media
+
+networks:
+  private:
+    name: simmer_private

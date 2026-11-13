@@ -1,0 +1,45 @@
+name: Simmer CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Backend image and Django checks
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - name: Build production image
+        run: docker build --tag simmer-backend:ci ./backend
+      - name: Run Django system checks
+        run: >-
+          docker run --rm
+          -e DJANGO_SECRET_KEY=ci-only-not-for-deployment
+          -e DJANGO_DEBUG=False
+          simmer-backend:ci python manage.py check
+
+  android:
+    name: Android debug APK build
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v4
+        with:
+          packages: platforms;android-36 build-tools;36.0.0
+      - name: Build debug APK
+        working-directory: android
+        run: sed -i 's/\r$//' gradlew && chmod +x gradlew && ./gradlew --no-daemon assembleDebug
