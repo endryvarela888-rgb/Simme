@@ -25,7 +25,7 @@ La captura de OVH indica que no hay dominios configurados en ese VPS. Para mante
 
 1. Conectar GitHub para crear el repositorio privado `Simmer` y subir los commits locales.
 2. Agregar la clave pública dedicada de Simmer al usuario de despliegue `ubuntu` (o a otro usuario aislado con Docker); configurar la clave privada y el `known_hosts` verificado como secretos de Actions.
-3. Registrar un subdominio gratuito, actualizar el archivo `/opt/simmer/shared/.env` y probar Caddy/HTTPS.
+3. Registrar un subdominio gratuito y ejecutar `deploy/bootstrap-host.sh <subdominio>` en el VPS para crear el `.env` con secretos aleatorios en el servidor.
 4. Revisar el inventario y respaldo del proyecto anterior. Al arrancar Compose de Simmer se ocuparán los puertos 80/443, por lo que el Caddy antiguo se debe detener; sus volúmenes viejos se eliminarán solo tras confirmar que Simmer está saludable.
 5. Después habilitar `SIMMER_DEPLOY_ENABLED`.
 
