@@ -10,7 +10,7 @@ val releaseApiBaseUrl = providers.gradleProperty("simmerApiBaseUrl")
 
 android {
     namespace = "com.simmer.app"
-    compileSdk = 36
+    compileSdk = 37
     defaultConfig {
         applicationId = "com.simmer.app"
         minSdk = 26
@@ -49,6 +49,7 @@ dependencies {
     implementation("androidx.datastore:datastore-preferences:1.2.0")
     implementation("com.squareup.retrofit2:retrofit:3.0.0")
     implementation("com.squareup.retrofit2:converter-kotlinx-serialization:3.0.0")
+    implementation("com.squareup.okhttp3:okhttp:5.3.0")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.9.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2")
     implementation("com.squareup.okhttp3:logging-interceptor:5.3.0")
