@@ -27,10 +27,9 @@ services:
       DJANGO_DEBUG: "False"
       MEDIA_ROOT: /data/media
     command: ["sh", "-c", "python manage.py migrate --noinput && python manage.py collectstatic --noinput && gunicorn config.wsgi:application --bind 0.0.0.0:8000 --workers 2 --timeout 60"]
-    ports:
-      - "127.0.0.1:${SIMMER_BIND_PORT:-8001}:8000"
     volumes:
       - simmer_recipe_media:/data/media
+      - simmer_staticfiles:/app/staticfiles
     depends_on:
       db:
         condition: service_healthy
@@ -42,11 +41,37 @@ services:
       start_period: 30s
     networks: [private]
 
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    environment:
+      SIMMER_DOMAIN: ${SIMMER_DOMAIN:?Set SIMMER_DOMAIN in /opt/simmer/shared/.env}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - simmer_caddy_data:/data
+      - simmer_caddy_config:/config
+      - simmer_recipe_media:/srv/media:ro
+      - simmer_staticfiles:/srv/staticfiles:ro
+    depends_on:
+      web:
+        condition: service_healthy
+    networks: [private]
+
 volumes:
   simmer_postgres_data:
     name: simmer_postgres_data
   simmer_recipe_media:
     name: simmer_recipe_media
+  simmer_staticfiles:
+    name: simmer_staticfiles
+  simmer_caddy_data:
+    name: simmer_caddy_data
+  simmer_caddy_config:
+    name: simmer_caddy_config
 
 networks:
   private:

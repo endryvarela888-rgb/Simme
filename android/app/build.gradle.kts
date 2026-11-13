@@ -3,6 +3,11 @@ plugins {
     id("org.jetbrains.kotlin.plugin.compose")
 }
 
+val releaseApiBaseUrl = providers.gradleProperty("simmerApiBaseUrl")
+    .getOrElse("https://simmer-api.duckdns.org/api/v1/")
+    .replace("\\", "\\\\")
+    .replace("\"", "\\\"")
+
 android {
     namespace = "com.simmer.app"
     compileSdk = 36
@@ -19,7 +24,7 @@ android {
             manifestPlaceholders["usesCleartextTraffic"] = "true"
         }
         release {
-            buildConfigField("String", "API_BASE_URL", "\"https://api.simmer.app/api/v1/\"")
+            buildConfigField("String", "API_BASE_URL", "\"$releaseApiBaseUrl\"")
             manifestPlaceholders["usesCleartextTraffic"] = "false"
             isMinifyEnabled = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
