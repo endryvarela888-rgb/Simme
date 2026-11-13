@@ -10,7 +10,7 @@ val releaseApiBaseUrl = providers.gradleProperty("simmerApiBaseUrl")
 
 android {
     namespace = "com.simmer.app"
-    compileSdk = 37
+    compileSdk = 36
     defaultConfig {
         applicationId = "com.simmer.app"
         minSdk = 26
@@ -35,7 +35,7 @@ android {
 }
 
 dependencies {
-    val composeBom = platform("androidx.compose:compose-bom:2026.09.00")
+    val composeBom = platform("androidx.compose:compose-bom:2026.04.01")
     implementation(composeBom)
     androidTestImplementation(composeBom)
     implementation("androidx.core:core-ktx:1.17.0")
