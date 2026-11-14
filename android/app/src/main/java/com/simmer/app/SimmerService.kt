@@ -19,7 +19,7 @@ import java.util.concurrent.TimeUnit
 private interface SimmerEndpoints {
     @GET suspend fun get(@Url path: String, @Header("Authorization") authorization: String? = null): ResponseBody
     @POST suspend fun post(@Url path: String, @Body body: RequestBody, @Header("Authorization") authorization: String? = null): ResponseBody
-    @DELETE suspend fun delete(@Url path: String, @Header("Authorization") authorization: String? = null): ResponseBody?
+    @DELETE suspend fun delete(@Url path: String, @Body body: RequestBody? = null, @Header("Authorization") authorization: String? = null): ResponseBody?
 }
 
 private val simmerEndpoints: SimmerEndpoints by lazy {
@@ -32,7 +32,7 @@ suspend fun simmerRequest(path: String, token: String?, body: JSONObject?, metho
     val auth = token?.let { "Bearer $it" }
     return try {
         when (method) {
-            "DELETE" -> simmerEndpoints.delete(path, auth)?.string().orEmpty()
+            "DELETE" -> simmerEndpoints.delete(path, body?.toString()?.toRequestBody("application/json".toMediaType()), auth)?.string().orEmpty()
             "POST" -> simmerEndpoints.post(path, (body?.toString() ?: "{}").toRequestBody("application/json".toMediaType()), auth).string()
             else -> simmerEndpoints.get(path, auth).string()
         }

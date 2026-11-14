@@ -1,4 +1,5 @@
 from django.contrib.auth.models import AbstractUser, BaseUserManager
+from django.conf import settings
 from django.db import models
 
 class UserManager(BaseUserManager):
@@ -21,6 +22,7 @@ class UserManager(BaseUserManager):
 class User(AbstractUser):
     username = None
     email = models.EmailField(unique=True)
+    email_verified = models.BooleanField(default=False)
     display_name = models.CharField(max_length=80, blank=True)
     auth_provider = models.CharField(max_length=12, default="email")
     google_sub = models.CharField(max_length=255, unique=True, null=True, blank=True)
@@ -29,3 +31,20 @@ class User(AbstractUser):
     USERNAME_FIELD = "email"
     REQUIRED_FIELDS = []
     objects = UserManager()
+
+
+class EmailCode(models.Model):
+    VERIFY_EMAIL = "verify_email"
+    RESET_PASSWORD = "reset_password"
+    DELETE_ACCOUNT = "delete_account"
+    PURPOSES = [(VERIFY_EMAIL, "Verify email"), (RESET_PASSWORD, "Reset password"), (DELETE_ACCOUNT, "Delete account")]
+
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="email_codes")
+    purpose = models.CharField(max_length=20, choices=PURPOSES)
+    code_hash = models.CharField(max_length=128)
+    expires_at = models.DateTimeField()
+    sent_at = models.DateTimeField()
+    attempts = models.PositiveSmallIntegerField(default=0)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=("user", "purpose"), name="unique_email_code_per_purpose")]

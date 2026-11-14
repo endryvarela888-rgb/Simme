@@ -4,9 +4,9 @@ Simmer es una app Android de recetas que requiere iniciar sesión. La app consul
 
 ## Estado
 
-Primer corte funcional: backend Django/DRF y PostgreSQL en Docker, 790 recetas importadas (757 publicadas tras la revisión de pasos), endpoints de salud/catálogo/cuentas/favoritos y cliente Android Compose con acceso obligatorio por email, búsqueda, categorías, favoritos, detalle y modo cocinar. La API está desplegada en `https://simmer-api.duckdns.org/api/v1/health/` detrás de Caddy/HTTPS.
+Base funcional desplegada: backend Django/DRF y PostgreSQL en Docker, 790 recetas importadas (757 publicadas tras la revisión de pasos), y API detrás de Caddy/HTTPS en `https://simmer-api.duckdns.org/api/v1/health/`. El cliente Android Compose incluye búsqueda, filtros, paginación, favoritos, detalle, modo cocinar, verificación de email, recuperación y borrado de cuenta. Las variantes debug y release apuntan por defecto a la API HTTPS de Simmer.
 
-Aún falta generar y abrir el APK en Android SDK/emulador; la máquina local no tiene Android SDK configurado. Google login, anuncios, compras de monedas, chef de IA, i18n, la publicación y la activación del CI/CD en GitHub siguen pendientes. Véase [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) para el estado del VPS y los requisitos del repositorio.
+La API de producción aún debe recibir esta última versión del backend. El registro por email permanecerá desactivado hasta configurar SMTP. Google Sign-In, los anuncios reales, CI/CD automático, pruebas manuales en dispositivo y publicación requieren los datos/cuentas externos listados en [docs/SETUP-EXTERNAL-ACCOUNTS.md](docs/SETUP-EXTERNAL-ACCOUNTS.md). El chef IA, las monedas y las traducciones están fuera del MVP.
 
 ## Desarrollo local
 

@@ -68,13 +68,18 @@ Comprobaciones después de importar: ≥300 recetas publicadas, todas con ≥1 i
 ### Auth
 | Método | Ruta | Descripción |
 |---|---|---|
-| POST | `/auth/register/` | email, password, display_name → tokens |
+| POST | `/auth/register/` | email, password, display_name → manda código de verificación; la cuenta queda inactiva |
 | POST | `/auth/login/` | email, password → tokens |
+| POST | `/auth/verify-email/` | email, code (6 dígitos) → verifica y devuelve tokens |
+| POST | `/auth/resend-verification/` | email → vuelve a mandar código (60 s entre envíos) |
+| POST | `/auth/google/` | id_token → verifica con Google y devuelve tokens |
 | POST | `/auth/google/` | `id_token` de Google → crea o enlaza usuario → tokens |
 | POST | `/auth/refresh/` | refresh → nuevo access |
 | POST | `/auth/logout/` | invalida refresh (blacklist) |
 | POST | `/auth/password/forgot/` | envía enlace/código por email |
 | POST | `/auth/password/reset/` | confirma nueva contraseña |
+| POST | `/auth/account-deletion/request/` + `/confirm/` | verificación por email y borrado desde web |
+| DELETE | `/auth/me/` | requiere la contraseña actual; borra cuenta y favoritos |
 | GET/PATCH | `/me/` | perfil |
 | DELETE | `/me/` | borra la cuenta y sus datos (requiere confirmar contraseña o reautenticar con Google) |
 

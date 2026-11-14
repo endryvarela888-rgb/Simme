@@ -11,6 +11,7 @@ staticfiles/
 *.sqlite3
 .gradle/
 .gradle-cache/
+**/gradle-daemon-jvm.properties
 local.properties
 **/build/
 *.keystore

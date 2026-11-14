@@ -7,6 +7,13 @@ val releaseApiBaseUrl = providers.gradleProperty("simmerApiBaseUrl")
     .getOrElse("https://simmer-api.duckdns.org/api/v1/")
     .replace("\\", "\\\\")
     .replace("\"", "\\\"")
+val testAdmobAppId = "ca-app-pub-3940256099942544~3347511713"
+val admobAppId = providers.gradleProperty("simmerAdmobAppId").getOrElse(testAdmobAppId)
+val admobInterstitialId = providers.gradleProperty("simmerAdmobInterstitialId").getOrElse("REPLACE_WITH_ADMOB_INTERSTITIAL_UNIT_ID")
+val releaseAdsConfigured = providers.gradleProperty("simmerAdmobAppId").isPresent &&
+    providers.gradleProperty("simmerAdmobInterstitialId").isPresent
+val googleWebClientId = providers.gradleProperty("simmerGoogleWebClientId").getOrElse("REPLACE_WITH_GOOGLE_WEB_CLIENT_ID")
+val googleSignInConfigured = providers.gradleProperty("simmerGoogleWebClientId").isPresent
 
 android {
     namespace = "com.simmer.app"
@@ -20,12 +27,24 @@ android {
     }
     buildTypes {
         debug {
-            buildConfigField("String", "API_BASE_URL", "\"http://10.0.2.2:8000/api/v1/\"")
-            manifestPlaceholders["usesCleartextTraffic"] = "true"
+            buildConfigField("String", "API_BASE_URL", "\"$releaseApiBaseUrl\"")
+            buildConfigField("String", "ADMOB_APP_ID", "\"$testAdmobAppId\"")
+            buildConfigField("String", "ADMOB_INTERSTITIAL_ID", "\"ca-app-pub-3940256099942544/1033173712\"")
+            buildConfigField("Boolean", "ADMOB_ENABLED", "true")
+            buildConfigField("String", "GOOGLE_WEB_CLIENT_ID", "\"$googleWebClientId\"")
+            buildConfigField("Boolean", "GOOGLE_SIGN_IN_ENABLED", googleSignInConfigured.toString())
+            manifestPlaceholders["usesCleartextTraffic"] = "false"
+            manifestPlaceholders["admobAppId"] = testAdmobAppId
         }
         release {
             buildConfigField("String", "API_BASE_URL", "\"$releaseApiBaseUrl\"")
+            buildConfigField("String", "ADMOB_APP_ID", "\"$admobAppId\"")
+            buildConfigField("String", "ADMOB_INTERSTITIAL_ID", "\"$admobInterstitialId\"")
+            buildConfigField("Boolean", "ADMOB_ENABLED", releaseAdsConfigured.toString())
+            buildConfigField("String", "GOOGLE_WEB_CLIENT_ID", "\"$googleWebClientId\"")
+            buildConfigField("Boolean", "GOOGLE_SIGN_IN_ENABLED", googleSignInConfigured.toString())
             manifestPlaceholders["usesCleartextTraffic"] = "false"
+            manifestPlaceholders["admobAppId"] = admobAppId
             isMinifyEnabled = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
@@ -53,6 +72,11 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.9.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2")
     implementation("com.squareup.okhttp3:logging-interceptor:5.3.0")
+    implementation("com.google.android.libraries.ads.mobile.sdk:ads-mobile-sdk:1.6.0")
+    implementation("com.google.android.ump:user-messaging-platform:4.0.0")
+    implementation("androidx.credentials:credentials:1.6.0")
+    implementation("androidx.credentials:credentials-play-services-auth:1.6.0")
+    implementation("com.google.android.libraries.identity.googleid:googleid:1.2.1")
     implementation("io.coil-kt:coil-compose:2.7.0")
     implementation("androidx.security:security-crypto:1.1.0")
     debugImplementation("androidx.compose.ui:ui-tooling")

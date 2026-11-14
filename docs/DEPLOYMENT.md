@@ -6,7 +6,7 @@
 
 ## Despliegue continuo
 
-`.github/workflows/deploy.yml` queda preparado, pero apagado hasta configurar el acceso seguro al VPS. Requiere:
+`.github/workflows/deploy.yml` queda preparado, pero apagado hasta configurar el acceso seguro al VPS. El repositorio ya existe y `main` está publicado. Para habilitar el despliegue automático requiere:
 
 - Variable de repositorio `SIMMER_DEPLOY_ENABLED=true`.
 - Secretos `SIMMER_HOST`, `SIMMER_USER`, `SIMMER_DEPLOY_KEY` y `SIMMER_KNOWN_HOSTS`.
@@ -23,12 +23,10 @@ El backend anterior `BeyondTheFrontier` fue detenido y eliminado según la autor
 
 La clave SSH anterior `gha_deploy_clean` estaba restringida al despliegue de BeyondTheFrontier y no se reutiliza. Simmer tiene una clave de despliegue dedicada; su archivo privado permanece local en `.deploy/`, ignorado por Git.
 
-## Primera configuración manual necesaria
+## Estado actual y siguiente paso
 
-1. Crear/conectar el repositorio privado `Simmer` en GitHub y subir los commits locales.
-2. Añadir a GitHub Actions los secretos `SIMMER_HOST`, `SIMMER_USER`, `SIMMER_DEPLOY_KEY` y `SIMMER_KNOWN_HOSTS`, además de la variable `SIMMER_DEPLOY_ENABLED=true`.
-3. Ejecutar el workflow CI y el primer despliegue desde `main`.
+El código más nuevo todavía requiere desplegarse en VPS. Las cuentas requeridas y los valores exactos para SMTP, OAuth, AdMob y Actions están documentados en `SETUP-EXTERNAL-ACCOUNTS.md`. Hasta configurar SMTP, el endpoint de registro responde `503` intencionalmente y no crea cuentas sin posibilidad de verificar su email.
 
 ## URL de producción en Android
 
-El host del APK release se configura con la propiedad Gradle `simmerApiBaseUrl`. Al registrar el nombre gratuito, compilar con `-PsimmerApiBaseUrl=https://<subdominio>.duckdns.org/api/v1/`. No distribuir APKs release mientras el hostname de ejemplo no esté registrado y HTTPS no responda.
+El host del APK debug y release se configura con la propiedad Gradle `simmerApiBaseUrl`; el valor por defecto ya es `https://simmer-api.duckdns.org/api/v1/`. Se puede sobreescribir, por ejemplo, con `-PsimmerApiBaseUrl=https://<subdominio>.duckdns.org/api/v1/`.

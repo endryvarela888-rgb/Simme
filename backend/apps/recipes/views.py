@@ -20,6 +20,12 @@ class RecipeList(generics.ListAPIView):
         if p.get("ingredient"): qs = qs.filter(ingredients__name__icontains=p["ingredient"])
         if p.get("search"): qs = qs.filter(title__icontains=p["search"])
         return qs.distinct().order_by("title")
+
+class PublicConfig(APIView):
+    permission_classes = [permissions.AllowAny]
+    def get(self, _request):
+        from django.conf import settings
+        return Response({"ads_enabled": settings.SIMMER_ADS_ENABLED, "ad_interval": settings.SIMMER_AD_INTERVAL})
 class RecipeDetail(generics.RetrieveAPIView):
     queryset = Recipe.objects.filter(is_published=True).select_related("category", "area").prefetch_related("ingredients")
     serializer_class = RecipeSerializer
