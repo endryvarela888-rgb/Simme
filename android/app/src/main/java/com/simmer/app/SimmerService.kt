@@ -47,7 +47,18 @@ suspend fun simmerRequest(path: String, token: String?, body: JSONObject?, metho
                 return simmerRequest(path, access, body, method)
             }
         }
-        throw IllegalStateException(runCatching { JSONObject(responseText).optString("detail") }.getOrNull()?.takeIf(String::isNotBlank) ?: "Request failed (${error.code()})")
+        val errorJson = runCatching { JSONObject(responseText) }.getOrNull()
+        val detail = errorJson?.optString("detail")?.takeIf(String::isNotBlank)
+        val fieldError = errorJson?.keys()?.asSequence()?.mapNotNull { field ->
+            val value = errorJson.opt(field)
+            val message = when (value) {
+                is org.json.JSONArray -> value.optString(0)
+                is String -> value
+                else -> ""
+            }
+            message.takeIf(String::isNotBlank)?.let { "$field: $it" }
+        }?.firstOrNull()
+        throw IllegalStateException(detail ?: fieldError ?: "Request failed (${error.code()})")
     }
 }
 
