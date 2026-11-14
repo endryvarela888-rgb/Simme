@@ -76,7 +76,7 @@ dependencies {
     implementation("com.google.android.ump:user-messaging-platform:4.0.0")
     implementation("androidx.credentials:credentials:1.6.0")
     implementation("androidx.credentials:credentials-play-services-auth:1.6.0")
-    implementation("com.google.android.libraries.identity.googleid:googleid:1.2.1")
+    implementation("com.google.android.libraries.identity.googleid:googleid:1.1.1")
     implementation("io.coil-kt:coil-compose:2.7.0")
     implementation("androidx.security:security-crypto:1.1.0")
     debugImplementation("androidx.compose.ui:ui-tooling")
