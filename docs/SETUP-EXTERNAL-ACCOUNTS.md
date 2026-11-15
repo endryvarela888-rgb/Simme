@@ -30,7 +30,7 @@ El código usa Credential Manager en Android y valida el ID token en Django. No 
 
    Copia el valor `SHA1` del bloque `Variant: debug`. En una publicación posterior se añade también el SHA-1 de Play App Signing.
 3. En **Clients → Create client → Web application**, crea un cliente Web. No necesita JavaScript origins ni redirect URI para este flujo. Copia el **Client ID**, que termina en `.apps.googleusercontent.com`.
-4. El mismo Web Client ID se configura como Gradle property `simmerGoogleWebClientId` para Android y como `GOOGLE_OAUTH_CLIENT_IDS` en `/opt/simmer/shared/.env` para Django. No pegues ningún `client_secret`; Android usa el Web Client ID público y el backend verifica la audiencia del token.
+4. El mismo Web Client ID se configura como Gradle property `simmerGoogleWebClientId` (en `android/local.properties`, que no se versiona) y como `GOOGLE_OAUTH_CLIENT_IDS` en `/opt/simmer/shared/.env` para Django. No pegues ningún `client_secret`; Android usa el Web Client ID público y el backend verifica la audiencia del token.
 5. Ejecuta la app debug local con esa propiedad y prueba una cuenta añadida como tester. El APK debug de GitHub Actions tiene otra firma; para el primer test de Google usa la app ejecutada desde Android Studio con el certificado debug cuyo SHA-1 registraste.
 
 ## 3. AdMob y consentimiento

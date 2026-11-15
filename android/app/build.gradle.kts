@@ -12,8 +12,14 @@ val admobAppId = providers.gradleProperty("simmerAdmobAppId").getOrElse(testAdmo
 val admobInterstitialId = providers.gradleProperty("simmerAdmobInterstitialId").getOrElse("REPLACE_WITH_ADMOB_INTERSTITIAL_UNIT_ID")
 val releaseAdsConfigured = providers.gradleProperty("simmerAdmobAppId").isPresent &&
     providers.gradleProperty("simmerAdmobInterstitialId").isPresent
+val localGoogleWebClientId = java.util.Properties().let { properties ->
+    val localPropertiesFile = rootProject.file("local.properties")
+    if (localPropertiesFile.isFile) localPropertiesFile.inputStream().use { properties.load(it) }
+    properties.getProperty("simmerGoogleWebClientId")
+}
 val googleWebClientIdInput = providers.gradleProperty("simmerGoogleWebClientId")
     .orElse(providers.environmentVariable("SIMMER_GOOGLE_WEB_CLIENT_ID"))
+    .orElse(providers.provider { localGoogleWebClientId })
     .orNull
     .orEmpty()
     .trim()
