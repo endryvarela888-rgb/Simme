@@ -101,6 +101,9 @@ private val NeonPink = Color(0xFFFF38C7)
 private val NeonBlue = Color(0xFF00DFFF)
 private val NeonPeach = Color(0xFFFF8A00)
 private val NeonViolet = Color(0xFFAA5CFF)
+private val BackgroundBlush = Color(0xFFFFB8E8)
+private val BackgroundSky = Color(0xFF9EECFF)
+private val BackgroundApricot = Color(0xFFFFD09B)
 
 private object AppSession {
     var context: android.content.Context? = null
@@ -247,7 +250,7 @@ private fun SimmerApp() {
         }
     }
 
-    Surface(Modifier.fillMaxSize(), color = Cream) {
+    Surface(Modifier.fillMaxSize(), color = Color.Transparent) {
         AnimatedContent(targetState = if (token == null) "auth" else if (cooking) "cook" else if (selected != null) "detail" else screen,
             transitionSpec = { fadeIn() togetherWith fadeOut() }, label = "simmer-screen") { page ->
             when (page) {
@@ -329,21 +332,21 @@ private fun SimmerApp() {
                         } catch (e: Exception) { contentError = e.message ?: "Couldn't update favorites. Try again." }
                     }
                 }, onCook = { cooking = true }) }
-                else -> Scaffold(containerColor = Cream, bottomBar = {
-                    NavigationBar(containerColor = Color(0xFFFFFCFA), contentColor = Tomato) {
+                else -> Scaffold(containerColor = Color.Transparent, bottomBar = {
+                    NavigationBar(containerColor = Color(0xFFF1D7FF), contentColor = Tomato) {
                         listOf("Home" to "home", "Search" to "search", "Saved" to "favorites", "Profile" to "profile").forEach { (label, destination) ->
                             NavigationBarItem(selected = screen == destination, onClick = { screen = destination }, icon = { Text(when (destination) { "home" -> "⌂"; "search" -> "⌕"; "favorites" -> "♡"; else -> "◉" }, fontSize = 21.sp) }, label = { Text(label, fontWeight = if (screen == destination) FontWeight.Bold else FontWeight.Medium) }, colors = androidx.compose.material3.NavigationBarItemDefaults.colors(selectedIconColor = Tomato, selectedTextColor = Tomato, indicatorColor = Petal, unselectedIconColor = Ink.copy(alpha = .55f), unselectedTextColor = Ink.copy(alpha = .55f)))
                         }
                     }
                 }) { padding ->
-                    Column(Modifier.padding(padding).fillMaxSize()) {
+                    Column(Modifier.padding(padding).fillMaxSize().background(Brush.linearGradient(listOf(BackgroundBlush, Lilac, BackgroundSky, BackgroundApricot)))) {
         TopAppBar(title = {
             if (screen == "home") Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("Simmer", fontWeight = FontWeight.Bold, fontFamily = FontFamily.Serif, color = Ink, fontSize = 25.sp)
                 Text("✦", color = NeonPink, fontSize = 25.sp)
             } else Text(screen.replaceFirstChar { it.uppercase() }, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Serif, color = Ink)
         },
-                            colors = TopAppBarDefaults.topAppBarColors(containerColor = Cream))
+                            colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent))
                         if (contentLoading) CircularProgressIndicator(Modifier.padding(18.dp), color = Tomato)
                         if (contentError.isNotBlank()) TextButton(onClick = { scope.launch { contentLoading = true; contentError = ""; try { loadRecipes(query) } catch (e: Exception) { contentError = e.message ?: "Could not load recipes." }; contentLoading = false } }) {
                             Text("$contentError  ·  Tap to retry", color = MaterialTheme.colorScheme.error)
@@ -420,7 +423,7 @@ private fun AuthScreen(
     var password by remember { mutableStateOf("") }
     var name by remember { mutableStateOf("") }
     var code by remember { mutableStateOf("") }
-    Column(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Cream, Petal.copy(alpha = .38f), Cream))).padding(horizontal = 26.dp), verticalArrangement = Arrangement.Center) {
+    Column(Modifier.fillMaxSize().background(Brush.linearGradient(listOf(BackgroundBlush, Lilac, BackgroundSky, BackgroundApricot))).padding(horizontal = 26.dp), verticalArrangement = Arrangement.Center) {
         Box(Modifier.size(68.dp).clip(RoundedCornerShape(24.dp)).background(Brush.linearGradient(listOf(Tomato, Color(0xFFB77B91)))), contentAlignment = Alignment.Center) { Text("S", color = Champagne, fontWeight = FontWeight.Black, fontSize = 38.sp, fontFamily = FontFamily.Serif) }
         Spacer(Modifier.height(22.dp))
         val verifying = verificationEmail != null
@@ -553,7 +556,7 @@ private fun MealCard(meal: Meal, onClick: () -> Unit) {
 private fun DetailScreen(meal: Meal, isFavorite: Boolean, onBack: () -> Unit, onFavorite: () -> Unit, onCook: () -> Unit) {
     BackHandler(onBack = onBack)
     val context = LocalContext.current
-    Column(Modifier.fillMaxSize()) {
+    Column(Modifier.fillMaxSize().background(Brush.linearGradient(listOf(BackgroundBlush, Lilac, BackgroundSky, BackgroundApricot)))) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 8.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             TextButton(onClick = onBack) { Text("‹  Back", color = Tomato) }
             IconButton(onClick = onFavorite) { Text(if (isFavorite) "♥" else "♡", color = Tomato, fontSize = 26.sp) }
@@ -578,7 +581,7 @@ private fun DetailScreen(meal: Meal, isFavorite: Boolean, onBack: () -> Unit, on
 private fun CookScreen(meal: Meal, onClose: () -> Unit) {
     var step by remember(meal.id) { mutableStateOf(0) }
     BackHandler(onBack = onClose)
-    Column(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Cream, Lilac.copy(alpha = .55f), Petal.copy(alpha = .45f)))).padding(24.dp), verticalArrangement = Arrangement.SpaceBetween) {
+    Column(Modifier.fillMaxSize().background(Brush.linearGradient(listOf(BackgroundBlush, Lilac, BackgroundSky, BackgroundApricot))).padding(24.dp), verticalArrangement = Arrangement.SpaceBetween) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) { Text("COOK MODE", color = Basil, fontWeight = FontWeight.Bold); TextButton(onClick = onClose) { Text("Close", color = Tomato) } }
         Column(verticalArrangement = Arrangement.spacedBy(18.dp)) {
             Text(meal.title, fontSize = 29.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Serif, color = Ink)
