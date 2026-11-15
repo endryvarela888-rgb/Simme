@@ -11,6 +11,7 @@ import androidx.activity.compose.BackHandler
 import androidx.credentials.CredentialManager
 import androidx.credentials.CustomCredential
 import androidx.credentials.GetCredentialRequest
+import androidx.credentials.exceptions.NoCredentialException
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -76,7 +77,7 @@ import coil.compose.AsyncImage
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import com.google.android.libraries.identity.googleid.GetGoogleIdOption
+import com.google.android.libraries.identity.googleid.GetSignInWithGoogleOption
 import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
 import org.json.JSONArray
 import org.json.JSONObject
@@ -272,6 +273,8 @@ private fun SimmerApp() {
                                     val googleToken = getGoogleIdToken(activity)
                                     val session = api("auth/google/", body = JSONObject().put("id_token", googleToken))
                                     token = session.getString("access"); AppSession.save(token!!, session.optString("refresh")); screen = "home"
+                                } catch (e: NoCredentialException) {
+                                    authError = "Google could not find an account. Add or reauthenticate a Google account on this device, then try again."
                                 } catch (e: Exception) { authError = e.message ?: "Google sign-in failed." }
                                 busy = false
                             }
@@ -524,10 +527,7 @@ private suspend fun api(path: String, token: String? = null, body: JSONObject? =
 }
 
 private suspend fun getGoogleIdToken(activity: Activity): String {
-    val option = GetGoogleIdOption.Builder()
-        .setFilterByAuthorizedAccounts(false)
-        .setServerClientId(BuildConfig.GOOGLE_WEB_CLIENT_ID)
-        .setAutoSelectEnabled(false)
+    val option = GetSignInWithGoogleOption.Builder(BuildConfig.GOOGLE_WEB_CLIENT_ID)
         .build()
     val request = GetCredentialRequest.Builder().addCredentialOption(option).build()
     val credential = CredentialManager.create(activity).getCredential(activity, request).credential
