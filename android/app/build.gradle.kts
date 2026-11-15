@@ -12,8 +12,16 @@ val admobAppId = providers.gradleProperty("simmerAdmobAppId").getOrElse(testAdmo
 val admobInterstitialId = providers.gradleProperty("simmerAdmobInterstitialId").getOrElse("REPLACE_WITH_ADMOB_INTERSTITIAL_UNIT_ID")
 val releaseAdsConfigured = providers.gradleProperty("simmerAdmobAppId").isPresent &&
     providers.gradleProperty("simmerAdmobInterstitialId").isPresent
-val googleWebClientId = providers.gradleProperty("simmerGoogleWebClientId").getOrElse("REPLACE_WITH_GOOGLE_WEB_CLIENT_ID")
-val googleSignInConfigured = providers.gradleProperty("simmerGoogleWebClientId").isPresent
+val googleWebClientIdInput = providers.gradleProperty("simmerGoogleWebClientId")
+    .orElse(providers.environmentVariable("SIMMER_GOOGLE_WEB_CLIENT_ID"))
+    .orNull
+    .orEmpty()
+    .trim()
+val googleSignInConfigured = googleWebClientIdInput.endsWith(".apps.googleusercontent.com") &&
+    !googleWebClientIdInput.startsWith("REPLACE", ignoreCase = true)
+val googleWebClientId = (if (googleSignInConfigured) googleWebClientIdInput else "REPLACE_WITH_GOOGLE_WEB_CLIENT_ID")
+    .replace("\\", "\\\\")
+    .replace("\"", "\\\"")
 
 android {
     namespace = "com.simmer.app"

@@ -18,13 +18,20 @@ El VPS solo admite usuarios nuevos cuando SMTP está configurado. Localmente, Dj
 
 ## 2. Google Sign-In
 
-En Google Cloud crea el consentimiento OAuth y un cliente OAuth **Web application**. Ese ID se utiliza como `serverClientId` de Credential Manager y como audiencia verificada por Django:
+El código usa Credential Manager en Android y valida el ID token en Django. No se usa un OAuth client secret. Google necesita dos OAuth Client IDs en el mismo proyecto:
 
-- Android/Gradle: `simmerGoogleWebClientId=<WEB_CLIENT_ID>` en `android/gradle.properties` local o como propiedad Gradle de la compilación.
-- VPS: `GOOGLE_OAUTH_CLIENT_IDS=<WEB_CLIENT_ID>` en `/opt/simmer/shared/.env`.
-- En el cliente OAuth Android, configura el paquete `com.simmer.app` y la huella SHA-1 del certificado. En desarrollo se obtiene con `./gradlew signingReport`; para Play se registra la huella del certificado de firma de Play.
+1. En Google Cloud Console crea o selecciona el proyecto `Simmer` y abre **Google Auth Platform**. Completa Branding con el nombre Simmer y un correo de soporte. Configura la audiencia como **External** y añade tu cuenta de Google como usuario de prueba mientras la app esté en pruebas.
+2. En **Clients → Create client → Android**, usa el package name exacto `com.simmer.app` y la huella SHA-1 de la firma debug local. Desde PowerShell:
 
-El Client ID no es una contraseña; no se debe compartir el secreto de cliente web si Google llegara a crear uno para otro tipo de cliente.
+   ```powershell
+   cd D:\Recursos\Proyecto\Simmer\android
+   .\gradlew.bat signingReport
+   ```
+
+   Copia el valor `SHA1` del bloque `Variant: debug`. En una publicación posterior se añade también el SHA-1 de Play App Signing.
+3. En **Clients → Create client → Web application**, crea un cliente Web. No necesita JavaScript origins ni redirect URI para este flujo. Copia el **Client ID**, que termina en `.apps.googleusercontent.com`.
+4. El mismo Web Client ID se configura como Gradle property `simmerGoogleWebClientId` para Android y como `GOOGLE_OAUTH_CLIENT_IDS` en `/opt/simmer/shared/.env` para Django. No pegues ningún `client_secret`; Android usa el Web Client ID público y el backend verifica la audiencia del token.
+5. Ejecuta la app debug local con esa propiedad y prueba una cuenta añadida como tester. El APK debug de GitHub Actions tiene otra firma; para el primer test de Google usa la app ejecutada desde Android Studio con el certificado debug cuyo SHA-1 registraste.
 
 ## 3. AdMob y consentimiento
 
@@ -69,5 +76,6 @@ La configuración habilita el despliegue al hacer push de cambios de backend o d
 
 - Android usa la API de producción HTTPS por defecto en debug y release.
 - Email verification, recuperación, borrado, Google sign-in, UMP e intersticial están implementados con placeholders o IDs de prueba.
-- El servidor de producción todavía no ejecuta la nueva versión. No aceptará registros por email hasta que SMTP esté configurado y se despliegue la migración.
+- El backend nuevo está desplegado en el VPS; el registro por email y la autenticación SMTP ya se comprobaron.
+- Google Sign-In espera los OAuth Client IDs del propietario; los anuncios reales permanecen desactivados hasta configurar AdMob.
 - Chef IA, monedas/Play Billing e i18n quedan fuera del MVP.
