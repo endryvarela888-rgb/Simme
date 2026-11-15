@@ -177,6 +177,8 @@ private fun SimmerApp() {
     var selected by remember { mutableStateOf<Meal?>(null) }
     var cooking by remember { mutableStateOf(false) }
     var query by remember { mutableStateOf("") }
+    var categorySearch by remember { mutableStateOf("") }
+    var areaSearch by remember { mutableStateOf("") }
     var searchJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
     var categories by remember { mutableStateOf<List<Category>>(emptyList()) }
     var areas by remember { mutableStateOf<List<Area>>(emptyList()) }
@@ -355,13 +357,15 @@ private fun SimmerApp() {
                             "home" -> HomeScreen(meals, hasMore = nextRecipes != null, isLoadingMore = loadingMore, onLoadMore = { scope.launch { try { loadMoreRecipes(); contentError = "" } catch (e: Exception) { contentError = e.message ?: "Could not load more recipes." } } }, onMeal = { openRecipe(it) })
                             "search" -> Column(Modifier.fillMaxSize().padding(horizontal = 18.dp)) {
                                 OutlinedTextField(query, { value -> query = value; searchJob?.cancel(); searchJob = scope.launch { kotlinx.coroutines.delay(350); try { loadRecipes(search = value); contentError = "" } catch (e: Exception) { contentError = e.message ?: "Search failed. Tap to retry." } } }, Modifier.fillMaxWidth(), singleLine = true, label = { Text("Search recipes") }, shape = RoundedCornerShape(18.dp))
+                                OutlinedTextField(categorySearch, { categorySearch = it }, Modifier.fillMaxWidth(), singleLine = true, label = { Text("Type a food category") }, shape = RoundedCornerShape(16.dp))
                                 androidx.compose.foundation.lazy.LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                     item { androidx.compose.material3.FilterChip(selectedCategory == null, { selectedCategory = null; scope.launch { loadRecipes(query, category = null) } }, label = { Text("All categories") }) }
-                                    items(categories) { category -> androidx.compose.material3.FilterChip(selectedCategory == category.slug, { selectedCategory = category.slug; scope.launch { loadRecipes(query, category = category.slug) } }, label = { Text(category.name) }) }
+                                    items(categories.filter { it.name.contains(categorySearch.trim(), ignoreCase = true) }) { category -> androidx.compose.material3.FilterChip(selectedCategory == category.slug, { selectedCategory = category.slug; scope.launch { loadRecipes(query, category = category.slug) } }, label = { Text(category.name) }) }
                                 }
+                                OutlinedTextField(areaSearch, { areaSearch = it }, Modifier.fillMaxWidth(), singleLine = true, label = { Text("Type a region or cuisine") }, shape = RoundedCornerShape(16.dp))
                                 androidx.compose.foundation.lazy.LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                     item { androidx.compose.material3.FilterChip(selectedArea == null, { selectedArea = null; scope.launch { loadRecipes(query, area = null) } }, label = { Text("All regions") }) }
-                                    items(areas) { area -> androidx.compose.material3.FilterChip(selectedArea == area.slug, { selectedArea = area.slug; scope.launch { loadRecipes(query, area = area.slug) } }, label = { Text(area.name) }) }
+                                    items(areas.filter { it.name.contains(areaSearch.trim(), ignoreCase = true) }) { area -> androidx.compose.material3.FilterChip(selectedArea == area.slug, { selectedArea = area.slug; scope.launch { loadRecipes(query, area = area.slug) } }, label = { Text(area.name) }) }
                                 }
                                 OutlinedTextField(ingredientFilter, { ingredientFilter = it }, Modifier.fillMaxWidth(), singleLine = true, label = { Text("Ingredient") })
                                 TextButton(onClick = { scope.launch { loadRecipes(query) } }) { Text("Apply filters", color = Basil) }

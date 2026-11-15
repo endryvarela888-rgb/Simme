@@ -1,15 +1,23 @@
 from rest_framework import generics, permissions, status
+from rest_framework.pagination import PageNumberPagination
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from .models import Area, Category, Favorite, Recipe
 from .serializers import AreaSerializer, CategorySerializer, RecipeSerializer
 
+class CatalogPagination(PageNumberPagination):
+    # The catalog is a small reference list (unlike recipes, which stay paginated).
+    # Keep every category/region available to the mobile filter in the first response.
+    page_size = 1000
+
 class CategoryList(generics.ListAPIView):
     queryset = Category.objects.order_by("name")
     serializer_class = CategorySerializer
+    pagination_class = CatalogPagination
 class AreaList(generics.ListAPIView):
     queryset = Area.objects.order_by("name")
     serializer_class = AreaSerializer
+    pagination_class = CatalogPagination
 class RecipeList(generics.ListAPIView):
     serializer_class = RecipeSerializer
     def get_queryset(self):
