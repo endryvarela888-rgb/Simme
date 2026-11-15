@@ -31,6 +31,11 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items as gridItems
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
@@ -66,7 +71,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
@@ -82,10 +89,18 @@ import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
 import org.json.JSONArray
 import org.json.JSONObject
 
-private val Cream = Color(0xFFFFF8F0)
-private val Tomato = Color(0xFFE8590C)
-private val Ink = Color(0xFF2B2118)
-private val Basil = Color(0xFF2F7D45)
+private val Cream = Color(0xFFFFF8F3)
+private val Tomato = Color(0xFF9C1BB1)
+private val Ink = Color(0xFF302339)
+private val Basil = Color(0xFF397B52)
+private val Petal = Color(0xFFF8D9F4)
+private val Champagne = Color(0xFFFFE7A3)
+private val Lilac = Color(0xFFE2D6FF)
+private val NeonMint = Color(0xFFD5FF00)
+private val NeonPink = Color(0xFFFF38C7)
+private val NeonBlue = Color(0xFF00DFFF)
+private val NeonPeach = Color(0xFFFF8A00)
+private val NeonViolet = Color(0xFFAA5CFF)
 
 private object AppSession {
     var context: android.content.Context? = null
@@ -124,7 +139,20 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 private fun SimmerTheme(content: @Composable () -> Unit) {
-    MaterialTheme(colorScheme = MaterialTheme.colorScheme.copy(primary = Tomato, background = Cream, surface = Color.White, onSurface = Ink), content = content)
+    MaterialTheme(
+        colorScheme = androidx.compose.material3.lightColorScheme(
+            primary = Tomato, onPrimary = Color.White, secondary = Basil, onSecondary = Color.White,
+            tertiary = Color(0xFFB78542), background = Cream, onBackground = Ink,
+            surface = Color(0xFFFFFCFA), onSurface = Ink, surfaceVariant = Petal,
+            onSurfaceVariant = Color(0xFF68596B), outline = Color(0xFFD7C8D4)
+        ),
+        typography = MaterialTheme.typography.copy(
+            headlineLarge = MaterialTheme.typography.headlineLarge.copy(fontFamily = FontFamily.Serif),
+            headlineMedium = MaterialTheme.typography.headlineMedium.copy(fontFamily = FontFamily.Serif),
+            titleLarge = MaterialTheme.typography.titleLarge.copy(fontFamily = FontFamily.Serif)
+        ),
+        content = content
+    )
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -153,6 +181,7 @@ private fun SimmerApp() {
     var selectedArea by remember { mutableStateOf<String?>(null) }
     var ingredientFilter by remember { mutableStateOf("") }
     var nextRecipes by remember { mutableStateOf<String?>(null) }
+    var loadingMore by remember { mutableStateOf(false) }
     var recipesPerAd by remember { mutableStateOf(5) }
     var adsEnabled by remember { mutableStateOf(BuildConfig.DEBUG) }
     var pendingInterstitial by remember { mutableStateOf(false) }
@@ -174,14 +203,19 @@ private fun SimmerApp() {
         }.joinToString("&")
         val result = api("recipes/${if (params.isNotEmpty()) "?$params" else ""}", token = token)
         meals.clear()
-        meals.addAll(parseMeals(result.optJSONArray("results") ?: JSONArray()))
+        meals.addAll(parseMeals(result.optJSONArray("results") ?: JSONArray()).shuffled())
         nextRecipes = result.optString("next").takeIf { it.startsWith("http") }
     }
     suspend fun loadMoreRecipes() {
+        if (loadingMore) return
         val next = nextRecipes ?: return
-        val result = api(next, token = token)
-        meals.addAll(parseMeals(result.optJSONArray("results") ?: JSONArray()))
-        nextRecipes = result.optString("next").takeIf { it.startsWith("http") }
+        loadingMore = true
+        try {
+            val result = api(next, token = token)
+            val knownIds = meals.mapTo(mutableSetOf()) { it.id }
+            meals.addAll(parseMeals(result.optJSONArray("results") ?: JSONArray()).filterNot { it.id in knownIds }.shuffled())
+            nextRecipes = result.optString("next").takeIf { it.startsWith("http") }
+        } finally { loadingMore = false }
     }
     fun openRecipe(meal: Meal) {
         selected = meal
@@ -296,23 +330,26 @@ private fun SimmerApp() {
                     }
                 }, onCook = { cooking = true }) }
                 else -> Scaffold(containerColor = Cream, bottomBar = {
-                    NavigationBar(containerColor = Color.White) {
+                    NavigationBar(containerColor = Color(0xFFFFFCFA), contentColor = Tomato) {
                         listOf("Home" to "home", "Search" to "search", "Saved" to "favorites", "Profile" to "profile").forEach { (label, destination) ->
-                            NavigationBarItem(selected = screen == destination, onClick = { screen = destination }, icon = { Text(when (destination) { "home" -> "⌂"; "search" -> "⌕"; "favorites" -> "♡"; else -> "◉" }, fontSize = 21.sp) }, label = { Text(label) })
+                            NavigationBarItem(selected = screen == destination, onClick = { screen = destination }, icon = { Text(when (destination) { "home" -> "⌂"; "search" -> "⌕"; "favorites" -> "♡"; else -> "◉" }, fontSize = 21.sp) }, label = { Text(label, fontWeight = if (screen == destination) FontWeight.Bold else FontWeight.Medium) }, colors = androidx.compose.material3.NavigationBarItemDefaults.colors(selectedIconColor = Tomato, selectedTextColor = Tomato, indicatorColor = Petal, unselectedIconColor = Ink.copy(alpha = .55f), unselectedTextColor = Ink.copy(alpha = .55f)))
                         }
                     }
                 }) { padding ->
                     Column(Modifier.padding(padding).fillMaxSize()) {
-                        TopAppBar(title = { Text(if (screen == "home") "Simmer" else screen.replaceFirstChar { it.uppercase() }, fontWeight = FontWeight.Bold, color = Ink) },
+        TopAppBar(title = {
+            if (screen == "home") Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Simmer", fontWeight = FontWeight.Bold, fontFamily = FontFamily.Serif, color = Ink, fontSize = 25.sp)
+                Text("✦", color = NeonPink, fontSize = 25.sp)
+            } else Text(screen.replaceFirstChar { it.uppercase() }, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Serif, color = Ink)
+        },
                             colors = TopAppBarDefaults.topAppBarColors(containerColor = Cream))
                         if (contentLoading) CircularProgressIndicator(Modifier.padding(18.dp), color = Tomato)
                         if (contentError.isNotBlank()) TextButton(onClick = { scope.launch { contentLoading = true; contentError = ""; try { loadRecipes(query) } catch (e: Exception) { contentError = e.message ?: "Could not load recipes." }; contentLoading = false } }) {
                             Text("$contentError  ·  Tap to retry", color = MaterialTheme.colorScheme.error)
                         }
                         when (screen) {
-                            "home" -> HomeScreen(categories, meals, hasMore = nextRecipes != null, onLoadMore = { scope.launch { try { loadMoreRecipes() } catch (e: Exception) { contentError = e.message ?: "Could not load more recipes." } } }, onCategory = { category ->
-                                selectedCategory = category.slug; selectedArea = null; scope.launch { try { loadRecipes(category = category.slug, area = null); contentError = "" } catch (e: Exception) { contentError = e.message ?: "Could not load that category." } }
-                            }, onMeal = { openRecipe(it) })
+                            "home" -> HomeScreen(meals, hasMore = nextRecipes != null, isLoadingMore = loadingMore, onLoadMore = { scope.launch { try { loadMoreRecipes(); contentError = "" } catch (e: Exception) { contentError = e.message ?: "Could not load more recipes." } } }, onMeal = { openRecipe(it) })
                             "search" -> Column(Modifier.fillMaxSize().padding(horizontal = 18.dp)) {
                                 OutlinedTextField(query, { value -> query = value; searchJob?.cancel(); searchJob = scope.launch { kotlinx.coroutines.delay(350); try { loadRecipes(search = value); contentError = "" } catch (e: Exception) { contentError = e.message ?: "Search failed. Tap to retry." } } }, Modifier.fillMaxWidth(), singleLine = true, label = { Text("Search recipes") }, shape = RoundedCornerShape(18.dp))
                                 androidx.compose.foundation.lazy.LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -383,12 +420,12 @@ private fun AuthScreen(
     var password by remember { mutableStateOf("") }
     var name by remember { mutableStateOf("") }
     var code by remember { mutableStateOf("") }
-    Column(Modifier.fillMaxSize().padding(horizontal = 26.dp), verticalArrangement = Arrangement.Center) {
-        Box(Modifier.size(68.dp).clip(RoundedCornerShape(22.dp)).background(Tomato), contentAlignment = Alignment.Center) { Text("S", color = Color.White, fontWeight = FontWeight.Black, fontSize = 38.sp) }
+    Column(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Cream, Petal.copy(alpha = .38f), Cream))).padding(horizontal = 26.dp), verticalArrangement = Arrangement.Center) {
+        Box(Modifier.size(68.dp).clip(RoundedCornerShape(24.dp)).background(Brush.linearGradient(listOf(Tomato, Color(0xFFB77B91)))), contentAlignment = Alignment.Center) { Text("S", color = Champagne, fontWeight = FontWeight.Black, fontSize = 38.sp, fontFamily = FontFamily.Serif) }
         Spacer(Modifier.height(22.dp))
         val verifying = verificationEmail != null
         val resetting = passwordResetEmail != null
-        Text(when { verifying -> "Check your inbox."; resetting -> "Reset your password."; register -> "Join the table."; else -> "Good food,\nmade simple." }, fontSize = 34.sp, lineHeight = 39.sp, fontWeight = FontWeight.Bold, color = Ink)
+        Text(when { verifying -> "Check your inbox."; resetting -> "Reset your password."; register -> "Join the table."; else -> "Good food,\nmade simple." }, fontSize = 36.sp, lineHeight = 41.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Serif, color = Ink)
         Spacer(Modifier.height(8.dp)); Text(when { verifying -> "Enter the 6-digit code sent to $verificationEmail"; resetting -> "Enter the reset code sent to $passwordResetEmail"; else -> "Find your next favorite recipe." }, color = Ink.copy(alpha = .62f))
         Spacer(Modifier.height(28.dp))
         if (verifying) {
@@ -428,24 +465,55 @@ private fun AuthScreen(
 }
 
 @Composable
-private fun HomeScreen(categories: List<Category>, meals: List<Meal>, hasMore: Boolean, onLoadMore: () -> Unit, onCategory: (Category) -> Unit, onMeal: (Meal) -> Unit) {
-    LazyColumn(verticalArrangement = Arrangement.spacedBy(14.dp), contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 20.dp)) {
-        item { Column(Modifier.padding(horizontal = 18.dp)) { Text("WHAT'S COOKING?", color = Basil, fontSize = 12.sp, fontWeight = FontWeight.Bold); Text("A little inspiration\nfor your table.", fontSize = 30.sp, lineHeight = 34.sp, fontWeight = FontWeight.Bold, color = Ink) } }
-        item {
-            Card(Modifier.fillMaxWidth().padding(horizontal = 18.dp).height(150.dp), shape = RoundedCornerShape(26.dp), colors = CardDefaults.cardColors(containerColor = Color(0xFFFFE0C7))) {
-                Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.SpaceBetween) {
-                    Text("THE JOY OF COOKING", color = Tomato, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                    Text("Recipes worth\ncoming home to.", color = Ink, fontSize = 24.sp, fontWeight = FontWeight.Bold)
+private fun HomeScreen(meals: List<Meal>, hasMore: Boolean, isLoadingMore: Boolean, onLoadMore: () -> Unit, onMeal: (Meal) -> Unit) {
+    val gridState = rememberLazyGridState()
+    val lastVisibleIndex = gridState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
+    LaunchedEffect(lastVisibleIndex, meals.size, hasMore, isLoadingMore) {
+        if (hasMore && !isLoadingMore && meals.isNotEmpty() && lastVisibleIndex >= meals.size - 4) onLoadMore()
+    }
+    LazyVerticalGrid(
+        columns = GridCells.Fixed(2), state = gridState,
+        horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(14.dp),
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(start = 16.dp, end = 16.dp, top = 10.dp, bottom = 24.dp)
+    ) {
+        gridItems(meals, key = { it.id }) { meal -> RecipeGridCard(meal, onClick = { onMeal(meal) }) }
+        if (isLoadingMore) item(span = { GridItemSpan(maxLineSpan) }) {
+            Box(Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = Tomato) }
+        }
+        if (meals.isEmpty() && !hasMore) item(span = { GridItemSpan(maxLineSpan) }) {
+            Text("No recipes found yet.", Modifier.padding(24.dp), color = Ink.copy(alpha = .7f))
+        }
+    }
+}
+
+@Composable
+private fun RecipeGridCard(meal: Meal, onClick: () -> Unit) {
+    val labelPalette = listOf(NeonMint, NeonPink, NeonBlue, NeonPeach, NeonViolet)
+    val labelColor = labelPalette[(meal.category.hashCode() % labelPalette.size + labelPalette.size) % labelPalette.size]
+    val cardPalette = listOf(Color(0xFFFFF0D6), Color(0xFFFCE4F6), Color(0xFFE0FBFF), Color(0xFFEFE6FF), Color(0xFFEDFFD9))
+    val cardColor = cardPalette[(meal.id % cardPalette.size + cardPalette.size) % cardPalette.size]
+    Card(
+        Modifier.fillMaxWidth().clickable(onClick = onClick),
+        shape = RoundedCornerShape(25.dp),
+        colors = CardDefaults.cardColors(containerColor = cardColor),
+        elevation = CardDefaults.cardElevation(defaultElevation = 3.dp)
+    ) {
+        Column {
+            Box(Modifier.fillMaxWidth().height(148.dp).background(Lilac)) {
+                AsyncImage(model = imageUrl(meal.image), contentDescription = meal.title, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+                Surface(
+                    Modifier.align(Alignment.BottomStart).padding(9.dp),
+                    shape = RoundedCornerShape(50), color = labelColor, shadowElevation = 3.dp
+                ) {
+                    Text(meal.category.ifBlank { "Recipe" }.uppercase(), Modifier.padding(horizontal = 10.dp, vertical = 6.dp), color = Ink, fontSize = 9.sp, fontWeight = FontWeight.Black, letterSpacing = .7.sp, maxLines = 1)
                 }
+                Text("✦", Modifier.align(Alignment.TopEnd).padding(9.dp), color = Color.White, fontSize = 20.sp)
+            }
+            Column(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 11.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                Text(meal.title, color = Ink, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Serif, fontSize = 16.sp, lineHeight = 19.sp, maxLines = 2, minLines = 2)
+                Text("✧  ${meal.area?.takeIf { it.isNotBlank() && it != "null" } ?: "Simmer pick"}", color = Tomato, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
             }
         }
-        item { Text("Browse by mood", Modifier.padding(start = 18.dp, top = 6.dp), fontWeight = FontWeight.Bold, fontSize = 20.sp, color = Ink) }
-        item { androidx.compose.foundation.lazy.LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp), contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 18.dp)) {
-            items(categories) { category -> Surface(Modifier.clip(CircleShape).clickable { onCategory(category) }, color = Color.White, shape = CircleShape) { Text(category.name, Modifier.padding(horizontal = 18.dp, vertical = 12.dp), color = Ink, fontWeight = FontWeight.SemiBold) } }
-        } }
-        item { Text("Recipes for today", Modifier.padding(start = 18.dp, top = 4.dp), fontWeight = FontWeight.Bold, fontSize = 20.sp, color = Ink) }
-        items(meals) { meal -> MealCard(meal, onClick = { onMeal(meal) }) }
-        if (hasMore) item { TextButton(onClick = onLoadMore, modifier = Modifier.fillMaxWidth()) { Text("Load more recipes", color = Basil) } }
     }
 }
 
@@ -460,14 +528,20 @@ private fun MealList(meals: List<Meal>, onMeal: (Meal) -> Unit, hasMore: Boolean
 
 @Composable
 private fun MealCard(meal: Meal, onClick: () -> Unit) {
-    Card(Modifier.fillMaxWidth().padding(horizontal = 18.dp).clickable(onClick = onClick), shape = RoundedCornerShape(22.dp), colors = CardDefaults.cardColors(containerColor = Color.White), elevation = CardDefaults.cardElevation(2.dp)) {
+    val labelPalette = listOf(NeonMint, NeonPink, NeonBlue, NeonPeach, NeonViolet)
+    val labelColor = labelPalette[(meal.category.hashCode() % labelPalette.size + labelPalette.size) % labelPalette.size]
+    val cardPalette = listOf(Color(0xFFFFF0D6), Color(0xFFFCE4F6), Color(0xFFE0FBFF), Color(0xFFEFE6FF), Color(0xFFEDFFD9))
+    val cardColor = cardPalette[(meal.id % cardPalette.size + cardPalette.size) % cardPalette.size]
+    Card(Modifier.fillMaxWidth().padding(horizontal = 18.dp).clickable(onClick = onClick), shape = RoundedCornerShape(26.dp), colors = CardDefaults.cardColors(containerColor = cardColor), elevation = CardDefaults.cardElevation(4.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Box(Modifier.size(96.dp).background(Color(0xFFF0E6DA), RoundedCornerShape(18.dp)), contentAlignment = Alignment.Center) {
                 AsyncImage(model = imageUrl(meal.image), contentDescription = meal.title, modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(18.dp)), contentScale = ContentScale.Crop)
             }
             Column(Modifier.padding(horizontal = 14.dp, vertical = 12.dp).weight(1f)) {
-                Text(meal.category.uppercase(), color = Basil, fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                Spacer(Modifier.height(4.dp)); Text(meal.title, color = Ink, fontWeight = FontWeight.Bold, fontSize = 16.sp, maxLines = 2)
+                Surface(shape = RoundedCornerShape(50), color = labelColor) {
+                    Text(meal.category.ifBlank { "Recipe" }.uppercase(), Modifier.padding(horizontal = 9.dp, vertical = 5.dp), color = Ink, fontSize = 9.sp, fontWeight = FontWeight.Black, letterSpacing = .6.sp, maxLines = 1)
+                }
+                Spacer(Modifier.height(4.dp)); Text(meal.title, color = Ink, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Serif, fontSize = 17.sp, maxLines = 2)
                 Spacer(Modifier.height(4.dp)); Text(meal.area ?: "A Simmer favorite", color = Ink.copy(alpha = .58f), fontSize = 12.sp)
             }
             Spacer(Modifier.width(12.dp))
@@ -488,11 +562,11 @@ private fun DetailScreen(meal: Meal, isFavorite: Boolean, onBack: () -> Unit, on
             item { Box(Modifier.fillMaxWidth().height(210.dp).padding(horizontal = 18.dp).clip(RoundedCornerShape(28.dp)).background(Color(0xFFFFE0C7)), contentAlignment = Alignment.Center) {
                 AsyncImage(model = imageUrl(meal.image), contentDescription = meal.title, modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(28.dp)), contentScale = ContentScale.Crop)
             } }
-            item { Column(Modifier.padding(22.dp)) { Text(meal.category.uppercase(), color = Basil, fontWeight = FontWeight.Bold, fontSize = 12.sp); Text(meal.title, color = Ink, fontSize = 30.sp, lineHeight = 34.sp, fontWeight = FontWeight.Bold); Text(meal.area ?: "Cook something lovely", color = Ink.copy(alpha = .6f)) } }
-            item { Text("Ingredients", Modifier.padding(horizontal = 22.dp), color = Ink, fontWeight = FontWeight.Bold, fontSize = 20.sp) }
+            item { Column(Modifier.padding(22.dp)) { Text("✦  ${meal.category.uppercase()}", color = Basil, fontWeight = FontWeight.Bold, fontSize = 11.sp, letterSpacing = 1.2.sp); Text(meal.title, color = Ink, fontSize = 32.sp, lineHeight = 37.sp, fontFamily = FontFamily.Serif, fontWeight = FontWeight.Bold); Text(meal.area ?: "Cook something lovely", color = Tomato.copy(alpha = .85f)) } }
+            item { Text("Ingredients", Modifier.padding(horizontal = 22.dp), color = Ink, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Serif, fontSize = 22.sp) }
             items(meal.ingredients) { Text("•  $it", Modifier.padding(horizontal = 24.dp, vertical = 6.dp), color = Ink) }
             if (meal.video.startsWith("https://")) item { TextButton(onClick = { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(meal.video))) }) { Text("Watch recipe video", color = Basil) } }
-            item { Text("Method", Modifier.padding(horizontal = 22.dp, vertical = 16.dp), color = Ink, fontWeight = FontWeight.Bold, fontSize = 20.sp) }
+            item { Text("Method", Modifier.padding(horizontal = 22.dp, vertical = 16.dp), color = Ink, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Serif, fontSize = 22.sp) }
             items(meal.steps) { step -> Text("${meal.steps.indexOf(step) + 1}.  $step", Modifier.padding(horizontal = 24.dp, vertical = 7.dp), color = Ink) }
             item { Text("Recipe data by TheMealDB", Modifier.padding(22.dp), color = Ink.copy(alpha = .55f), fontSize = 12.sp) }
         }
@@ -504,10 +578,10 @@ private fun DetailScreen(meal: Meal, isFavorite: Boolean, onBack: () -> Unit, on
 private fun CookScreen(meal: Meal, onClose: () -> Unit) {
     var step by remember(meal.id) { mutableStateOf(0) }
     BackHandler(onBack = onClose)
-    Column(Modifier.fillMaxSize().padding(24.dp), verticalArrangement = Arrangement.SpaceBetween) {
+    Column(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Cream, Lilac.copy(alpha = .55f), Petal.copy(alpha = .45f)))).padding(24.dp), verticalArrangement = Arrangement.SpaceBetween) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) { Text("COOK MODE", color = Basil, fontWeight = FontWeight.Bold); TextButton(onClick = onClose) { Text("Close", color = Tomato) } }
         Column(verticalArrangement = Arrangement.spacedBy(18.dp)) {
-            Text(meal.title, fontSize = 25.sp, fontWeight = FontWeight.Bold, color = Ink)
+            Text(meal.title, fontSize = 29.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Serif, color = Ink)
             Text("STEP ${step + 1} OF ${meal.steps.size}", color = Tomato, fontWeight = FontWeight.Bold, fontSize = 13.sp)
             Text(meal.steps.getOrElse(step) { "You're all done. Enjoy your meal!" }, fontSize = 24.sp, lineHeight = 32.sp, color = Ink)
             Text("Ingredients are in the recipe details.", color = Ink.copy(alpha = .55f))
