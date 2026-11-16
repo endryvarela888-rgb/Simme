@@ -428,7 +428,7 @@ private fun AuthScreen(
     var name by remember { mutableStateOf("") }
     var code by remember { mutableStateOf("") }
     Column(Modifier.fillMaxSize().background(Brush.linearGradient(listOf(BackgroundBlush, Lilac, BackgroundSky, BackgroundApricot))).padding(horizontal = 26.dp), verticalArrangement = Arrangement.Center) {
-        Box(Modifier.size(68.dp).clip(RoundedCornerShape(24.dp)).background(Brush.linearGradient(listOf(Tomato, Color(0xFFB77B91)))), contentAlignment = Alignment.Center) { Text("S", color = Champagne, fontWeight = FontWeight.Black, fontSize = 38.sp, fontFamily = FontFamily.Serif) }
+        AsyncImage(model = R.drawable.simmer_mascot, contentDescription = "Simmer chef mascot", modifier = Modifier.size(104.dp), contentScale = ContentScale.Fit)
         Spacer(Modifier.height(22.dp))
         val verifying = verificationEmail != null
         val resetting = passwordResetEmail != null
