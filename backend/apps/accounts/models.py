@@ -24,6 +24,7 @@ class User(AbstractUser):
     email = models.EmailField(unique=True)
     email_verified = models.BooleanField(default=False)
     display_name = models.CharField(max_length=80, blank=True)
+    avatar = models.ImageField(upload_to="avatars/", blank=True)
     auth_provider = models.CharField(max_length=12, default="email")
     google_sub = models.CharField(max_length=255, unique=True, null=True, blank=True)
     preferred_language = models.CharField(max_length=5, default="en")

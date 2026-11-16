@@ -9,6 +9,7 @@ from django.utils import timezone
 from google.auth.transport import requests as google_requests
 from google.oauth2 import id_token as google_id_token
 from rest_framework import generics, permissions, status
+from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.response import Response
 from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.views import APIView
@@ -249,11 +250,39 @@ class AccountDeletionConfirmView(APIView):
 
 class MeView(generics.GenericAPIView):
     permission_classes = [permissions.IsAuthenticated]
+    parser_classes = [JSONParser, MultiPartParser, FormParser]
+
+    def profile_data(self, request):
+        user = request.user
+        avatar = request.build_absolute_uri(user.avatar.url) if user.avatar else ""
+        return {"id": user.id, "email": user.email, "display_name": user.display_name,
+                "email_verified": user.email_verified, "avatar": avatar}
 
     def get(self, request):
+        return Response(self.profile_data(request))
+
+    def patch(self, request):
         user = request.user
-        return Response({"id": user.id, "email": user.email, "display_name": user.display_name,
-                         "email_verified": user.email_verified})
+        old_avatar = user.avatar
+        name = request.data.get("display_name", user.display_name).strip()
+        if len(name) > 80:
+            return Response({"display_name": ["Use 80 characters or fewer."]}, status=status.HTTP_400_BAD_REQUEST)
+        avatar = request.FILES.get("avatar")
+        if avatar:
+            if avatar.size > 8 * 1024 * 1024:
+                return Response({"avatar": ["Avatar image must be 8 MB or smaller."]}, status=status.HTTP_400_BAD_REQUEST)
+            if not avatar.content_type.startswith("image/"):
+                return Response({"avatar": ["Choose an image file."]}, status=status.HTTP_400_BAD_REQUEST)
+            user.avatar = avatar
+        if request.data.get("remove_avatar") in (True, "true", "1"):
+            if user.avatar:
+                user.avatar.delete(save=False)
+            user.avatar = ""
+        user.display_name = name
+        user.save(update_fields=("display_name", "avatar"))
+        if avatar and old_avatar and old_avatar.name != user.avatar.name:
+            old_avatar.delete(save=False)
+        return Response(self.profile_data(request))
 
     def delete(self, request):
         password = request.data.get("password", "")

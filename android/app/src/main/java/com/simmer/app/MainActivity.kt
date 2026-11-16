@@ -141,7 +141,7 @@ private object AppSession {
 }
 
 data class Meal(val id: Int, val title: String, val category: String, val area: String?, val image: String, val steps: List<String>, val ingredients: List<String>, val video: String = "", val favorite: Boolean = false, val author: String = "TheMealDB", val likes: Int = 0, val dislikes: Int = 0, val myVote: Int = 0)
-data class RecipeComment(val id: Int, val author: String, val text: String, val replies: List<RecipeComment> = emptyList())
+data class RecipeComment(val id: Int, val author: String, val text: String, val avatar: String = "", val replies: List<RecipeComment> = emptyList())
 data class Category(val name: String, val slug: String, val image: String)
 data class Area(val name: String, val slug: String)
 
@@ -200,6 +200,12 @@ private fun SimmerApp() {
     var ingredientFilter by remember { mutableStateOf("") }
     var selectedRecipeImage by remember { mutableStateOf<Uri?>(null) }
     val recipeImagePicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { selectedRecipeImage = it }
+    var selectedAvatarImage by remember { mutableStateOf<Uri?>(null) }
+    val avatarPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { selectedAvatarImage = it }
+    var profileName by remember { mutableStateOf("") }
+    var profileEmail by remember { mutableStateOf("") }
+    var profileAvatar by remember { mutableStateOf("") }
+    var fullScreenAvatar by remember { mutableStateOf<String?>(null) }
     var nextRecipes by remember { mutableStateOf<String?>(null) }
     var loadingMore by remember { mutableStateOf(false) }
     var recipesPerAd by remember { mutableStateOf(5) }
@@ -254,6 +260,10 @@ private fun SimmerApp() {
             contentLoading = true
             contentError = ""
             try {
+                val me = api("auth/me/", token)
+                profileName = me.optString("display_name")
+                profileEmail = me.optString("email")
+                profileAvatar = me.optString("avatar")
                 val appConfig = api("config/", token)
                 recipesPerAd = appConfig.optInt("ad_interval", 5).coerceAtLeast(1)
                 adsEnabled = BuildConfig.DEBUG || (BuildConfig.ADMOB_ENABLED && appConfig.optBoolean("ads_enabled", false))
@@ -273,7 +283,7 @@ private fun SimmerApp() {
     }
 
     Surface(Modifier.fillMaxSize(), color = Color.Transparent) {
-        AnimatedContent(targetState = if (token == null) "auth" else if (cooking) "cook" else if (selected != null) "detail" else screen,
+        AnimatedContent(targetState = if (token == null) "auth" else if (fullScreenAvatar != null) "avatar" else if (cooking) "cook" else if (selected != null) "detail" else screen,
             transitionSpec = { fadeIn() togetherWith fadeOut() }, label = "simmer-screen") { page ->
             when (page) {
                 "auth" -> AuthScreen(busy, authError, verificationEmail, passwordResetEmail,
@@ -341,7 +351,8 @@ private fun SimmerApp() {
                     },
                     onCancelAuthFlow = { verificationEmail = null; passwordResetEmail = null; authError = "" })
                 "cook" -> selected?.let { CookScreen(it) { cooking = false } }
-                "detail" -> selected?.let { meal -> DetailScreen(meal, favorites.contains(meal.id), token.orEmpty(), onRatingUpdated = { likes, dislikes, vote -> updateRecipeRating(meal.id, likes, dislikes, vote) }, onBack = {
+                "avatar" -> AvatarViewer(fullScreenAvatar.orEmpty()) { fullScreenAvatar = null }
+                "detail" -> selected?.let { meal -> DetailScreen(meal, favorites.contains(meal.id), token.orEmpty(), onAvatarClick = { fullScreenAvatar = it }, onRatingUpdated = { likes, dislikes, vote -> updateRecipeRating(meal.id, likes, dislikes, vote) }, onBack = {
                     val activity = context as? Activity
                     if (!pendingInterstitial || activity == null || !AdsManager.showIfReady(activity)) selected = null
                     else { pendingInterstitial = false; selected = null; scope.launch { RecipeAdCounter.clearPendingAd(context) } }
@@ -405,8 +416,37 @@ private fun SimmerApp() {
                                 }
                             }, busy = busy, error = contentError)
                             "favorites" -> MealList(savedMeals, onMeal = { openRecipe(it) })
-                            else -> Column(Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                                Text("Your Simmer account", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                            else -> Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp), verticalArrangement = Arrangement.spacedBy(14.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                                Text("Your Simmer account", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, color = Ink)
+                                if (selectedAvatarImage != null) AsyncImage(model = selectedAvatarImage, contentDescription = "Selected avatar", modifier = Modifier.size(112.dp).clip(CircleShape).clickable { fullScreenAvatar = selectedAvatarImage.toString() }, contentScale = ContentScale.Crop)
+                                else ProfileAvatar(profileAvatar, profileName.ifBlank { profileEmail }, Modifier.size(112.dp).clickable { if (profileAvatar.isNotBlank()) fullScreenAvatar = imageUrl(profileAvatar) })
+                                TextButton(onClick = { avatarPicker.launch("image/*") }) { Text(if (profileAvatar.isBlank() && selectedAvatarImage == null) "＋ Add profile photo" else "Change profile photo", color = Tomato) }
+                                OutlinedTextField(profileName, { profileName = it.take(80) }, Modifier.fillMaxWidth(), label = { Text("Display name") }, singleLine = true, shape = RoundedCornerShape(16.dp))
+                                Text(profileEmail, color = Ink.copy(alpha = .65f))
+                                Button(onClick = {
+                                    if (!busy) {
+                                        busy = true
+                                        scope.launch {
+                                            try {
+                                                val updated = updateProfile(context, token.orEmpty(), profileName, selectedAvatarImage)
+                                                profileName = updated.optString("display_name")
+                                                profileAvatar = updated.optString("avatar")
+                                                selectedAvatarImage = null
+                                                contentError = "Profile updated."
+                                            } catch (e: Exception) { contentError = e.message ?: "Could not update your profile." }
+                                            finally { busy = false }
+                                        }
+                                    }
+                                }, enabled = !busy, colors = ButtonDefaults.buttonColors(containerColor = Tomato), modifier = Modifier.fillMaxWidth()) { Text(if (busy) "Saving…" else "Save profile") }
+                                if (profileAvatar.isNotBlank() || selectedAvatarImage != null) TextButton(onClick = {
+                                    scope.launch {
+                                        try {
+                                            val updated = api("auth/me/", token, JSONObject().put("display_name", profileName).put("remove_avatar", true), method = "PATCH")
+                                            profileAvatar = updated.optString("avatar"); selectedAvatarImage = null
+                                        } catch (e: Exception) { contentError = e.message ?: "Could not remove your photo." }
+                                    }
+                                }) { Text("Remove photo", color = Ink.copy(alpha = .65f)) }
+                                if (contentError.isNotBlank()) Text(contentError, color = Basil, fontSize = 13.sp)
                                 OutlinedButton(onClick = { selectedRecipeImage = null; screen = "create_recipe" }) { Text("＋  Share a recipe", color = Tomato) }
                                 TextButton(onClick = { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://simmer-api.duckdns.org/privacy/"))) }) { Text("Privacy policy", color = Basil) }
                                 TextButton(onClick = { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://simmer-api.duckdns.org/terms/"))) }) { Text("Terms of use", color = Basil) }
@@ -649,7 +689,7 @@ private fun MealCard(meal: Meal, onClick: () -> Unit) {
 }
 
 @Composable
-private fun DetailScreen(meal: Meal, isFavorite: Boolean, token: String, onRatingUpdated: (Int, Int, Int) -> Unit, onBack: () -> Unit, onFavorite: () -> Unit, onCook: () -> Unit) {
+private fun DetailScreen(meal: Meal, isFavorite: Boolean, token: String, onAvatarClick: (String) -> Unit, onRatingUpdated: (Int, Int, Int) -> Unit, onBack: () -> Unit, onFavorite: () -> Unit, onCook: () -> Unit) {
     BackHandler(onBack = onBack)
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -723,7 +763,7 @@ private fun DetailScreen(meal: Meal, isFavorite: Boolean, token: String, onRatin
             item { Text("Comments  ·  ${comments.size}", Modifier.padding(start = 22.dp, top = 22.dp, bottom = 8.dp), color = Ink, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Serif, fontSize = 22.sp) }
             if (comments.isEmpty()) item { Text("No comments yet. Start the conversation!", Modifier.padding(horizontal = 22.dp, vertical = 8.dp), color = Ink.copy(alpha = .7f)) }
             items(comments, key = { it.id }) { comment ->
-                CommentThread(comment, onReply = { replyTarget = comment }, onReport = { reportTarget = "comment" to it })
+                CommentThread(comment, onReply = { replyTarget = comment }, onReport = { reportTarget = "comment" to it }, onAvatarClick = onAvatarClick)
             }
             if (nextCommentsPage != null) item {
                 TextButton(onClick = {
@@ -783,20 +823,50 @@ private fun DetailScreen(meal: Meal, isFavorite: Boolean, token: String, onRatin
 }
 
 @Composable
-private fun CommentThread(comment: RecipeComment, onReply: () -> Unit, onReport: (Int) -> Unit, nested: Boolean = false) {
-    Column(Modifier.fillMaxWidth().padding(start = if (nested) 40.dp else 18.dp, end = 18.dp, top = 5.dp, bottom = 5.dp)) {
-        Surface(shape = RoundedCornerShape(18.dp), color = if (nested) Color(0xFFEFE6FF) else Color(0xFFFFFCFA), shadowElevation = 2.dp) {
-            Column(Modifier.fillMaxWidth().padding(14.dp)) {
-                Text(comment.author, color = Tomato, fontWeight = FontWeight.Bold, fontSize = 13.sp)
-                Spacer(Modifier.height(5.dp))
-                Text(comment.text, color = Ink)
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    TextButton(onClick = onReply) { Text("Reply", color = Basil, fontSize = 12.sp) }
-                    TextButton(onClick = { onReport(comment.id) }) { Text("Report", color = Ink.copy(alpha = .65f), fontSize = 12.sp) }
+private fun CommentThread(comment: RecipeComment, onReply: () -> Unit, onReport: (Int) -> Unit, onAvatarClick: (String) -> Unit, nested: Boolean = false) {
+    var expanded by remember(comment.id) { mutableStateOf(false) }
+    val cardColors = listOf(Color(0xFFEFE6FF), Color(0xFFFFE3F5), Color(0xFFDDF8FF), Color(0xFFFFEACD))
+    val cardColor = cardColors[(comment.id % cardColors.size + cardColors.size) % cardColors.size]
+    Column(Modifier.fillMaxWidth().padding(start = if (nested) 34.dp else 18.dp, end = 18.dp, top = 3.dp, bottom = 3.dp)) {
+        Surface(shape = RoundedCornerShape(20.dp), color = if (nested) cardColor.copy(alpha = .78f) else cardColor, shadowElevation = 2.dp) {
+            Column(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 9.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(9.dp)) {
+                    ProfileAvatar(comment.avatar, comment.author, Modifier.size(34.dp).then(if (comment.avatar.isNotBlank()) Modifier.clickable { onAvatarClick(imageUrl(comment.avatar)) } else Modifier))
+                    Text(comment.author, color = Tomato, fontWeight = FontWeight.ExtraBold, fontSize = 15.sp, maxLines = 1)
+                }
+                Spacer(Modifier.height(6.dp))
+                Text(comment.text, color = Ink, fontSize = 14.sp, lineHeight = 19.sp)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    TextButton(onClick = onReply, contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp, vertical = 0.dp)) { Text("Reply", color = Basil, fontSize = 12.sp) }
+                    TextButton(onClick = { onReport(comment.id) }, contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp, vertical = 0.dp)) { Text("Report", color = Ink.copy(alpha = .65f), fontSize = 12.sp) }
+                    if (!nested && comment.replies.isNotEmpty()) {
+                        TextButton(onClick = { expanded = !expanded }, contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp, vertical = 0.dp)) {
+                            Text(if (expanded) "Hide replies" else "${comment.replies.size} ${if (comment.replies.size == 1) "reply" else "replies"}", color = Tomato, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
                 }
             }
         }
-        comment.replies.forEach { reply -> CommentThread(reply, onReply = onReply, onReport = onReport, nested = true) }
+        if (!nested && expanded) comment.replies.forEach { reply -> CommentThread(reply, onReply = onReply, onReport = onReport, onAvatarClick = onAvatarClick, nested = true) }
+    }
+}
+
+@Composable
+private fun ProfileAvatar(url: String, label: String, modifier: Modifier = Modifier) {
+    Surface(modifier = modifier, shape = CircleShape, color = Lilac, shadowElevation = 2.dp) {
+        Box(contentAlignment = Alignment.Center) {
+            if (url.isNotBlank()) AsyncImage(model = imageUrl(url), contentDescription = "Profile photo of $label", modifier = Modifier.fillMaxSize().clip(CircleShape), contentScale = ContentScale.Crop)
+            else Text(label.trim().firstOrNull()?.uppercase() ?: "S", color = Tomato, fontWeight = FontWeight.Bold, fontSize = 19.sp)
+        }
+    }
+}
+
+@Composable
+private fun AvatarViewer(url: String, onClose: () -> Unit) {
+    BackHandler(onBack = onClose)
+    Box(Modifier.fillMaxSize().background(Color(0xEE17111D)).clickable(onClick = onClose), contentAlignment = Alignment.Center) {
+        AsyncImage(model = url, contentDescription = "Profile photo", modifier = Modifier.fillMaxWidth().padding(20.dp).clip(RoundedCornerShape(12.dp)), contentScale = ContentScale.Fit)
+        TextButton(onClick = onClose, modifier = Modifier.align(Alignment.TopStart).padding(16.dp)) { Text("‹  Back", color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.Bold) }
     }
 }
 
@@ -857,6 +927,31 @@ private suspend fun uploadRecipe(
     JSONObject(simmerMultipartRequest("recipes/create/", token, body))
 }
 
+private suspend fun updateProfile(context: android.content.Context, token: String, displayName: String, avatar: Uri?): JSONObject = withContext(Dispatchers.IO) {
+    if (avatar == null) return@withContext api("auth/me/", token, JSONObject().put("display_name", displayName), method = "PATCH")
+    val mime = context.contentResolver.getType(avatar) ?: "image/jpeg"
+    require(mime.startsWith("image/")) { "Choose an image file." }
+    val bytes = ByteArrayOutputStream().use { output ->
+        val buffer = ByteArray(16 * 1024)
+        var total = 0
+        context.contentResolver.openInputStream(avatar)?.use { input ->
+            while (true) {
+                val read = input.read(buffer)
+                if (read < 0) break
+                total += read
+                require(total <= 8 * 1024 * 1024) { "The profile photo must be 8 MB or smaller." }
+                output.write(buffer, 0, read)
+            }
+        } ?: error("Could not open the selected photo.")
+        output.toByteArray()
+    }
+    val body = MultipartBody.Builder().setType(MultipartBody.FORM)
+        .addFormDataPart("display_name", displayName)
+        .addFormDataPart("avatar", "profile-photo", bytes.toRequestBody(mime.toMediaType()))
+        .build()
+    JSONObject(simmerMultipartRequest("auth/me/", token, body, "PATCH"))
+}
+
 private suspend fun getGoogleIdToken(activity: Activity): String {
     val option = GetSignInWithGoogleOption.Builder(BuildConfig.GOOGLE_WEB_CLIENT_ID)
         .build()
@@ -882,5 +977,5 @@ private fun parseMeals(array: JSONArray) = (0 until array.length()).map { i -> a
 private fun parseComments(array: JSONArray) = (0 until array.length()).map { parseComment(array.getJSONObject(it)) }
 private fun parseComment(obj: JSONObject): RecipeComment {
     val replies = obj.optJSONArray("replies") ?: JSONArray()
-    return RecipeComment(obj.optInt("id"), obj.optString("author_name").ifBlank { "Simmer cook" }, obj.optString("text"), parseComments(replies))
+    return RecipeComment(obj.optInt("id"), obj.optString("author_name").ifBlank { "Simmer cook" }, obj.optString("text"), obj.optString("author_avatar"), parseComments(replies))
 }

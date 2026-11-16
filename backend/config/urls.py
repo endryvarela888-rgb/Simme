@@ -22,8 +22,8 @@ def legal_page(title, body):
 
 def privacy(_request):
     return legal_page("Privacy policy", """
-      <p>Simmer stores your email address, display name, account security data and saved recipes to provide account and recipe features. Recipe searches are sent to the Simmer API. Passwords are stored as salted hashes. The service is hosted on a VPS operated for Simmer.</p>
-      <p>If you publish a recipe, its photo, ingredients, steps and display name are visible to other users. Comments, replies and recipe ratings are also public. We store reports so moderators can review content. Deleting your account removes your published recipes, comments, votes and saved recipes.</p>
+      <p>Simmer stores your email address, display name, optional profile photo, account security data and saved recipes to provide account and recipe features. Recipe searches are sent to the Simmer API. Passwords are stored as salted hashes. The service is hosted on a VPS operated for Simmer.</p>
+      <p>If you publish a recipe, its photo, ingredients, steps and display name are visible to other users. Your optional profile photo is shown next to your comments and replies. Comments, replies and recipe ratings are also public. We store reports so moderators can review content. Deleting your account removes your published recipes, comments, votes, avatar and saved recipes.</p>
       <p>Account information is shared with the email delivery provider only to send verification and account recovery messages. Advertising services are not active in this build. If ads are enabled later, this policy and the in-app consent flow will be updated before release.</p>
       <p>You can request account deletion in the app or use the <a href="/account-deletion/">account deletion page</a>. Deletion removes your account and associated favorites, subject to legally required backups and retention.</p>""")
 

@@ -12,6 +12,7 @@ import retrofit2.http.DELETE
 import retrofit2.http.GET
 import retrofit2.http.Header
 import retrofit2.http.POST
+import retrofit2.http.PATCH
 import retrofit2.http.Url
 import org.json.JSONObject
 import java.util.concurrent.TimeUnit
@@ -19,6 +20,7 @@ import java.util.concurrent.TimeUnit
 private interface SimmerEndpoints {
     @GET suspend fun get(@Url path: String, @Header("Authorization") authorization: String? = null): ResponseBody
     @POST suspend fun post(@Url path: String, @Body body: RequestBody, @Header("Authorization") authorization: String? = null): ResponseBody
+    @PATCH suspend fun patch(@Url path: String, @Body body: RequestBody, @Header("Authorization") authorization: String? = null): ResponseBody
     @DELETE suspend fun delete(@Url path: String, @Body body: RequestBody? = null, @Header("Authorization") authorization: String? = null): ResponseBody?
 }
 
@@ -32,8 +34,8 @@ suspend fun simmerRequest(path: String, token: String?, body: JSONObject?, metho
     simmerRequestBody(path, token, body?.toString()?.toRequestBody("application/json".toMediaType()), method)
 
 /** Multipart transport for authenticated recipe-photo uploads. */
-suspend fun simmerMultipartRequest(path: String, token: String?, body: RequestBody): String =
-    simmerRequestBody(path, token, body, "POST")
+suspend fun simmerMultipartRequest(path: String, token: String?, body: RequestBody, method: String = "POST"): String =
+    simmerRequestBody(path, token, body, method)
 
 private suspend fun simmerRequestBody(path: String, token: String?, body: RequestBody?, method: String): String {
     val auth = token?.let { "Bearer $it" }
@@ -41,6 +43,7 @@ private suspend fun simmerRequestBody(path: String, token: String?, body: Reques
         when (method) {
             "DELETE" -> simmerEndpoints.delete(path, body, auth)?.string().orEmpty()
             "POST" -> simmerEndpoints.post(path, body ?: "{}".toRequestBody("application/json".toMediaType()), auth).string()
+            "PATCH" -> simmerEndpoints.patch(path, body ?: "{}".toRequestBody("application/json".toMediaType()), auth).string()
             else -> simmerEndpoints.get(path, auth).string()
         }
     } catch (error: HttpException) {

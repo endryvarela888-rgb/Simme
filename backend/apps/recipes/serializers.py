@@ -163,16 +163,24 @@ class RecipeCreateSerializer(serializers.Serializer):
 
 class RecipeCommentSerializer(serializers.ModelSerializer):
     author_name = serializers.SerializerMethodField()
+    author_avatar = serializers.SerializerMethodField()
     replies = serializers.SerializerMethodField()
     parent = serializers.PrimaryKeyRelatedField(queryset=RecipeComment.objects.all(), required=False, allow_null=True, write_only=True)
 
     class Meta:
         model = RecipeComment
-        fields = ("id", "author_name", "text", "created_at", "parent", "replies")
+        fields = ("id", "author_name", "author_avatar", "text", "created_at", "parent", "replies")
         read_only_fields = ("id", "author_name", "created_at", "replies")
 
     def get_author_name(self, obj):
         return (obj.author.display_name if obj.author_id else "") or obj.author_name or "Simmer cook"
+
+    def get_author_avatar(self, obj):
+        if not obj.author_id or not obj.author.avatar:
+            return ""
+        request = self.context.get("request")
+        url = obj.author.avatar.url
+        return request.build_absolute_uri(url) if request else url
 
     def get_replies(self, obj):
         replies = obj.replies.select_related("author").order_by("created_at")
@@ -201,13 +209,21 @@ class RecipeCommentSerializer(serializers.ModelSerializer):
 
 class RecipeCommentReplySerializer(serializers.ModelSerializer):
     author_name = serializers.SerializerMethodField()
+    author_avatar = serializers.SerializerMethodField()
 
     class Meta:
         model = RecipeComment
-        fields = ("id", "author_name", "text", "created_at")
+        fields = ("id", "author_name", "author_avatar", "text", "created_at")
 
     def get_author_name(self, obj):
         return (obj.author.display_name if obj.author_id else "") or obj.author_name or "Simmer cook"
+
+    def get_author_avatar(self, obj):
+        if not obj.author_id or not obj.author.avatar:
+            return ""
+        request = self.context.get("request")
+        url = obj.author.avatar.url
+        return request.build_absolute_uri(url) if request else url
 
 
 class ContentReportSerializer(serializers.ModelSerializer):
