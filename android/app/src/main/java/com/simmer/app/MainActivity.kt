@@ -8,6 +8,8 @@ import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.credentials.CredentialManager
 import androidx.credentials.CustomCredential
 import androidx.credentials.GetCredentialRequest
@@ -26,9 +28,12 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -48,10 +53,13 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -81,6 +89,10 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.layout.ContentScale
 import coil.compose.AsyncImage
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.MultipartBody
+import okhttp3.RequestBody.Companion.toRequestBody
+import java.io.ByteArrayOutputStream
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -128,7 +140,8 @@ private object AppSession {
     }
 }
 
-data class Meal(val id: Int, val title: String, val category: String, val area: String?, val image: String, val steps: List<String>, val ingredients: List<String>, val video: String = "", val favorite: Boolean = false)
+data class Meal(val id: Int, val title: String, val category: String, val area: String?, val image: String, val steps: List<String>, val ingredients: List<String>, val video: String = "", val favorite: Boolean = false, val author: String = "TheMealDB", val likes: Int = 0, val dislikes: Int = 0, val myVote: Int = 0)
+data class RecipeComment(val id: Int, val author: String, val text: String, val replies: List<RecipeComment> = emptyList())
 data class Category(val name: String, val slug: String, val image: String)
 data class Area(val name: String, val slug: String)
 
@@ -185,6 +198,8 @@ private fun SimmerApp() {
     var selectedCategory by remember { mutableStateOf<String?>(null) }
     var selectedArea by remember { mutableStateOf<String?>(null) }
     var ingredientFilter by remember { mutableStateOf("") }
+    var selectedRecipeImage by remember { mutableStateOf<Uri?>(null) }
+    val recipeImagePicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { selectedRecipeImage = it }
     var nextRecipes by remember { mutableStateOf<String?>(null) }
     var loadingMore by remember { mutableStateOf(false) }
     var recipesPerAd by remember { mutableStateOf(5) }
@@ -228,6 +243,11 @@ private fun SimmerApp() {
         scope.launch {
             if (adsEnabled && BuildConfig.ADMOB_ENABLED && !pendingInterstitial) pendingInterstitial = RecipeAdCounter.recordOpenedRecipe(context, recipesPerAd)
         }
+    }
+    fun updateRecipeRating(recipeId: Int, likes: Int, dislikes: Int, myVote: Int) {
+        selected = selected?.takeIf { it.id == recipeId }?.copy(likes = likes, dislikes = dislikes, myVote = myVote)
+        meals.indices.firstOrNull { meals[it].id == recipeId }?.let { index -> meals[index] = meals[index].copy(likes = likes, dislikes = dislikes, myVote = myVote) }
+        savedMeals.indices.firstOrNull { savedMeals[it].id == recipeId }?.let { index -> savedMeals[index] = savedMeals[index].copy(likes = likes, dislikes = dislikes, myVote = myVote) }
     }
     LaunchedEffect(token) {
         if (token != null) {
@@ -321,7 +341,7 @@ private fun SimmerApp() {
                     },
                     onCancelAuthFlow = { verificationEmail = null; passwordResetEmail = null; authError = "" })
                 "cook" -> selected?.let { CookScreen(it) { cooking = false } }
-                "detail" -> selected?.let { meal -> DetailScreen(meal, favorites.contains(meal.id), onBack = {
+                "detail" -> selected?.let { meal -> DetailScreen(meal, favorites.contains(meal.id), token.orEmpty(), onRatingUpdated = { likes, dislikes, vote -> updateRecipeRating(meal.id, likes, dislikes, vote) }, onBack = {
                     val activity = context as? Activity
                     if (!pendingInterstitial || activity == null || !AdsManager.showIfReady(activity)) selected = null
                     else { pendingInterstitial = false; selected = null; scope.launch { RecipeAdCounter.clearPendingAd(context) } }
@@ -342,12 +362,12 @@ private fun SimmerApp() {
                     }
                 }) { padding ->
                     Column(Modifier.padding(padding).fillMaxSize().background(Brush.linearGradient(listOf(BackgroundBlush, Lilac, BackgroundSky, BackgroundApricot)))) {
-        TopAppBar(title = {
+                        TopAppBar(title = {
             if (screen == "home") Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("Simmer", fontWeight = FontWeight.Bold, fontFamily = FontFamily.Serif, color = Ink, fontSize = 25.sp)
                 Text("✦", color = NeonPink, fontSize = 25.sp)
-            } else Text(screen.replaceFirstChar { it.uppercase() }, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Serif, color = Ink)
-        },
+            } else Text(if (screen == "create_recipe") "New recipe" else screen.replaceFirstChar { it.uppercase() }, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Serif, color = Ink)
+        }, actions = { if (screen == "home") TextButton(onClick = { selectedRecipeImage = null; screen = "create_recipe" }) { Text("＋ Recipe", color = Tomato, fontWeight = FontWeight.Bold) } },
                             colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent))
                         if (contentLoading) CircularProgressIndicator(Modifier.padding(18.dp), color = Tomato)
                         if (contentError.isNotBlank()) TextButton(onClick = { scope.launch { contentLoading = true; contentError = ""; try { loadRecipes(query) } catch (e: Exception) { contentError = e.message ?: "Could not load recipes." }; contentLoading = false } }) {
@@ -371,9 +391,23 @@ private fun SimmerApp() {
                                 TextButton(onClick = { scope.launch { loadRecipes(query) } }) { Text("Apply filters", color = Basil) }
                                 MealList(meals, onMeal = { openRecipe(it) }, hasMore = nextRecipes != null, onLoadMore = { scope.launch { runCatching { loadMoreRecipes() }.onFailure { contentError = it.message ?: "Could not load more recipes." } } })
                             }
+                            "create_recipe" -> RecipeCreateScreen(categories, areas, selectedRecipeImage, onPickImage = { recipeImagePicker.launch("image/*") }, onCancel = { screen = "home" }, onSubmit = { title, ingredients, steps, category, area, image ->
+                                busy = true; contentError = ""
+                                scope.launch {
+                                    try {
+                                        val created = uploadRecipe(context, token.orEmpty(), title, ingredients, steps, category, area, image)
+                                        val uploaded = parseMeals(JSONArray().put(created)).first()
+                                        meals.add(0, uploaded)
+                                        screen = "home"
+                                        selectedRecipeImage = null
+                                    } catch (e: Exception) { contentError = e.message ?: "Could not publish your recipe." }
+                                    finally { busy = false }
+                                }
+                            }, busy = busy, error = contentError)
                             "favorites" -> MealList(savedMeals, onMeal = { openRecipe(it) })
                             else -> Column(Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                                 Text("Your Simmer account", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                                OutlinedButton(onClick = { selectedRecipeImage = null; screen = "create_recipe" }) { Text("＋  Share a recipe", color = Tomato) }
                                 TextButton(onClick = { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://simmer-api.duckdns.org/privacy/"))) }) { Text("Privacy policy", color = Basil) }
                                 TextButton(onClick = { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://simmer-api.duckdns.org/terms/"))) }) { Text("Terms of use", color = Basil) }
                                 if (AdsManager.privacyOptionsRequired()) TextButton(onClick = { AdsManager.showPrivacyOptions(context as Activity) }) { Text("Privacy choices", color = Basil) }
@@ -406,6 +440,62 @@ private fun SimmerApp() {
         }) { Text("Delete permanently", color = MaterialTheme.colorScheme.error) } },
         dismissButton = { TextButton(onClick = { showDeleteAccount = false }) { Text("Cancel") } }
     )
+}
+
+@Composable
+private fun RecipeCreateScreen(
+    categories: List<Category>, areas: List<Area>, image: Uri?, onPickImage: () -> Unit,
+    onCancel: () -> Unit,
+    onSubmit: (String, List<String>, List<String>, String, String, Uri) -> Unit,
+    busy: Boolean, error: String,
+) {
+    var title by remember { mutableStateOf("") }
+    var ingredientsText by remember { mutableStateOf("") }
+    val steps = remember { mutableStateListOf("") }
+    var category by remember { mutableStateOf<Category?>(null) }
+    var area by remember { mutableStateOf<Area?>(null) }
+    var categoryMenu by remember { mutableStateOf(false) }
+    var areaMenu by remember { mutableStateOf(false) }
+    val ingredients = ingredientsText.lineSequence().map(String::trim).filter(String::isNotBlank).toList()
+    val ready = title.isNotBlank() && ingredients.isNotEmpty() && steps.all(String::isNotBlank) && image != null
+
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Text("Share something delicious", fontFamily = FontFamily.Serif, fontWeight = FontWeight.Bold, fontSize = 27.sp, color = Ink)
+        Text("Add a photo, ingredients and numbered cooking steps. Your recipe will be credited to you.", color = Ink.copy(alpha = .72f))
+        OutlinedTextField(title, { title = it }, Modifier.fillMaxWidth(), label = { Text("Recipe name *") }, singleLine = true, shape = RoundedCornerShape(16.dp))
+        OutlinedButton(onClick = onPickImage, modifier = Modifier.fillMaxWidth().height(52.dp)) { Text(if (image == null) "Choose recipe photo *" else "Change recipe photo", color = Tomato) }
+        if (image != null) AsyncImage(model = image, contentDescription = "Selected recipe photo", modifier = Modifier.fillMaxWidth().height(210.dp).clip(RoundedCornerShape(22.dp)), contentScale = ContentScale.Crop)
+        Text("Category (optional)", color = Ink, fontWeight = FontWeight.SemiBold)
+        Box {
+            OutlinedButton(onClick = { categoryMenu = true }, modifier = Modifier.fillMaxWidth()) { Text(category?.name ?: "Unspecified", color = Ink) }
+            DropdownMenu(expanded = categoryMenu, onDismissRequest = { categoryMenu = false }, modifier = Modifier.heightIn(max = 280.dp)) {
+                DropdownMenuItem(text = { Text("Unspecified") }, onClick = { category = null; categoryMenu = false })
+                categories.forEach { item -> DropdownMenuItem(text = { Text(item.name) }, onClick = { category = item; categoryMenu = false }) }
+            }
+        }
+        Text("Region or cuisine (optional)", color = Ink, fontWeight = FontWeight.SemiBold)
+        Box {
+            OutlinedButton(onClick = { areaMenu = true }, modifier = Modifier.fillMaxWidth()) { Text(area?.name ?: "Not specified", color = Ink) }
+            DropdownMenu(expanded = areaMenu, onDismissRequest = { areaMenu = false }, modifier = Modifier.heightIn(max = 280.dp)) {
+                DropdownMenuItem(text = { Text("Not specified") }, onClick = { area = null; areaMenu = false })
+                areas.forEach { item -> DropdownMenuItem(text = { Text(item.name) }, onClick = { area = item; areaMenu = false }) }
+            }
+        }
+        OutlinedTextField(ingredientsText, { ingredientsText = it }, Modifier.fillMaxWidth().height(150.dp), label = { Text("Ingredients * (one per line)") }, shape = RoundedCornerShape(16.dp))
+        Text("Preparation steps *", color = Ink, fontWeight = FontWeight.SemiBold)
+        steps.forEachIndexed { index, step ->
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(step, { steps[index] = it }, Modifier.weight(1f), label = { Text("Step ${index + 1}") }, shape = RoundedCornerShape(16.dp), minLines = 2)
+                if (steps.size > 1) TextButton(onClick = { steps.removeAt(index) }) { Text("×", color = Tomato, fontSize = 22.sp) }
+            }
+        }
+        TextButton(onClick = { if (steps.size < 30) steps.add("") }, enabled = steps.size < 30) { Text("＋ Add another step", color = Tomato) }
+        if (error.isNotBlank()) Text(error, color = MaterialTheme.colorScheme.error)
+        Button(onClick = { image?.let { onSubmit(title.trim(), ingredients, steps.map(String::trim), category?.slug.orEmpty(), area?.slug.orEmpty(), it) } }, enabled = ready && !busy, modifier = Modifier.fillMaxWidth().height(54.dp), shape = RoundedCornerShape(18.dp), colors = ButtonDefaults.buttonColors(containerColor = Tomato)) {
+            if (busy) CircularProgressIndicator(Modifier.size(20.dp), color = Color.White, strokeWidth = 2.dp) else Text("Publish recipe", fontWeight = FontWeight.Bold)
+        }
+        TextButton(onClick = onCancel, modifier = Modifier.fillMaxWidth()) { Text("Cancel", color = Ink.copy(alpha = .7f)) }
+    }
 }
 
 @Composable
@@ -518,7 +608,8 @@ private fun RecipeGridCard(meal: Meal, onClick: () -> Unit) {
             }
             Column(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 11.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
                 Text(meal.title, color = Ink, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Serif, fontSize = 16.sp, lineHeight = 19.sp, maxLines = 2, minLines = 2)
-                Text("✧  ${meal.area?.takeIf { it.isNotBlank() && it != "null" } ?: "Simmer pick"}", color = Tomato, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+                Text("✧  ${meal.author}", color = Tomato, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+                Text("♥ ${meal.likes}     ♡ ${meal.dislikes}", color = Ink.copy(alpha = .68f), fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
             }
         }
     }
@@ -549,7 +640,8 @@ private fun MealCard(meal: Meal, onClick: () -> Unit) {
                     Text(meal.category.ifBlank { "Recipe" }.uppercase(), Modifier.padding(horizontal = 9.dp, vertical = 5.dp), color = Ink, fontSize = 9.sp, fontWeight = FontWeight.Black, letterSpacing = .6.sp, maxLines = 1)
                 }
                 Spacer(Modifier.height(4.dp)); Text(meal.title, color = Ink, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Serif, fontSize = 17.sp, maxLines = 2)
-                Spacer(Modifier.height(4.dp)); Text(meal.area ?: "A Simmer favorite", color = Ink.copy(alpha = .58f), fontSize = 12.sp)
+                Spacer(Modifier.height(4.dp)); Text("Recipe by ${meal.author}", color = Tomato.copy(alpha = .82f), fontSize = 11.sp, maxLines = 1)
+                Text("♥ ${meal.likes}     ♡ ${meal.dislikes}", color = Ink.copy(alpha = .66f), fontSize = 10.sp)
             }
             Spacer(Modifier.width(12.dp))
         }
@@ -557,27 +649,154 @@ private fun MealCard(meal: Meal, onClick: () -> Unit) {
 }
 
 @Composable
-private fun DetailScreen(meal: Meal, isFavorite: Boolean, onBack: () -> Unit, onFavorite: () -> Unit, onCook: () -> Unit) {
+private fun DetailScreen(meal: Meal, isFavorite: Boolean, token: String, onRatingUpdated: (Int, Int, Int) -> Unit, onBack: () -> Unit, onFavorite: () -> Unit, onCook: () -> Unit) {
     BackHandler(onBack = onBack)
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var likes by remember(meal.id) { mutableStateOf(meal.likes) }
+    var dislikes by remember(meal.id) { mutableStateOf(meal.dislikes) }
+    var myVote by remember(meal.id) { mutableStateOf(meal.myVote) }
+    var comments by remember(meal.id) { mutableStateOf<List<RecipeComment>>(emptyList()) }
+    var nextCommentsPage by remember(meal.id) { mutableStateOf<String?>(null) }
+    var commentText by remember(meal.id) { mutableStateOf("") }
+    var replyTarget by remember(meal.id) { mutableStateOf<RecipeComment?>(null) }
+    var interactionMessage by remember(meal.id) { mutableStateOf("") }
+    var reportTarget by remember(meal.id) { mutableStateOf<Pair<String, Int>?>(null) }
+    var reportReason by remember(meal.id) { mutableStateOf("inappropriate") }
+    var reportDetails by remember(meal.id) { mutableStateOf("") }
+    var interactionBusy by remember(meal.id) { mutableStateOf(false) }
+    LaunchedEffect(meal.id) {
+        runCatching {
+            val detail = api("recipes/${meal.id}/", token)
+            likes = detail.optInt("likes_count", likes)
+            dislikes = detail.optInt("dislikes_count", dislikes)
+            myVote = detail.optInt("my_vote", myVote)
+            val page = api("recipes/${meal.id}/comments/", token)
+            comments = parseComments(page.optJSONArray("results") ?: JSONArray())
+            nextCommentsPage = page.optString("next").takeIf { it.startsWith("http") }
+        }.onFailure { interactionMessage = it.message ?: "Could not load comments." }
+    }
+    fun vote(value: Int) {
+        if (interactionBusy) return
+        scope.launch {
+            interactionBusy = true
+            try {
+                val result = api("recipes/${meal.id}/vote/", token, JSONObject().put("value", value))
+                likes = result.optInt("likes_count", likes); dislikes = result.optInt("dislikes_count", dislikes); myVote = result.optInt("my_vote", value)
+                onRatingUpdated(likes, dislikes, myVote)
+            } catch (error: Exception) { interactionMessage = error.message ?: "Could not save your vote." }
+            finally { interactionBusy = false }
+        }
+    }
+    fun report(kind: String, id: Int, reason: String, details: String) {
+        scope.launch {
+            try {
+                val path = if (kind == "recipe") "recipes/$id/report/" else "comments/$id/report/"
+                val result = api(path, token, JSONObject().put("reason", reason).put("details", details))
+                interactionMessage = result.optString("detail", "Thanks for your report.")
+                reportTarget = null
+            } catch (error: Exception) { interactionMessage = error.message ?: "Could not send the report." }
+        }
+    }
     Column(Modifier.fillMaxSize().background(Brush.linearGradient(listOf(BackgroundBlush, Lilac, BackgroundSky, BackgroundApricot)))) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 8.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             TextButton(onClick = onBack) { Text("‹  Back", color = Tomato) }
-            IconButton(onClick = onFavorite) { Text(if (isFavorite) "♥" else "♡", color = Tomato, fontSize = 26.sp) }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                TextButton(onClick = { reportTarget = "recipe" to meal.id }) { Text("Report", color = Ink.copy(alpha = .75f)) }
+                IconButton(onClick = onFavorite) { Text(if (isFavorite) "♥" else "♡", color = Tomato, fontSize = 26.sp) }
+            }
         }
         LazyColumn(Modifier.weight(1f), contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 20.dp)) {
             item { Box(Modifier.fillMaxWidth().height(210.dp).padding(horizontal = 18.dp).clip(RoundedCornerShape(28.dp)).background(Color(0xFFFFE0C7)), contentAlignment = Alignment.Center) {
                 AsyncImage(model = imageUrl(meal.image), contentDescription = meal.title, modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(28.dp)), contentScale = ContentScale.Crop)
             } }
-            item { Column(Modifier.padding(22.dp)) { Text("✦  ${meal.category.uppercase()}", color = Basil, fontWeight = FontWeight.Bold, fontSize = 11.sp, letterSpacing = 1.2.sp); Text(meal.title, color = Ink, fontSize = 32.sp, lineHeight = 37.sp, fontFamily = FontFamily.Serif, fontWeight = FontWeight.Bold); Text(meal.area ?: "Cook something lovely", color = Tomato.copy(alpha = .85f)) } }
+            item { Column(Modifier.padding(22.dp)) { Text("✦  ${meal.category.uppercase()}", color = Basil, fontWeight = FontWeight.Bold, fontSize = 11.sp, letterSpacing = 1.2.sp); Text(meal.title, color = Ink, fontSize = 32.sp, lineHeight = 37.sp, fontFamily = FontFamily.Serif, fontWeight = FontWeight.Bold); Text(meal.area ?: "Cook something lovely", color = Tomato.copy(alpha = .85f)); Text("Recipe by ${meal.author}", Modifier.padding(top = 5.dp), color = Ink.copy(alpha = .7f), fontSize = 13.sp, fontWeight = FontWeight.SemiBold) } }
+            item { Row(Modifier.fillMaxWidth().padding(horizontal = 22.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                androidx.compose.material3.FilterChip(selected = myVote == 1, onClick = { vote(1) }, label = { Text("♡  Like  $likes") })
+                androidx.compose.material3.FilterChip(selected = myVote == -1, onClick = { vote(-1) }, label = { Text("Dislike  $dislikes") })
+            } }
             item { Text("Ingredients", Modifier.padding(horizontal = 22.dp), color = Ink, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Serif, fontSize = 22.sp) }
             items(meal.ingredients) { Text("•  $it", Modifier.padding(horizontal = 24.dp, vertical = 6.dp), color = Ink) }
             if (meal.video.startsWith("https://")) item { TextButton(onClick = { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(meal.video))) }) { Text("Watch recipe video", color = Basil) } }
             item { Text("Method", Modifier.padding(horizontal = 22.dp, vertical = 16.dp), color = Ink, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Serif, fontSize = 22.sp) }
             items(meal.steps) { step -> Text("${meal.steps.indexOf(step) + 1}.  $step", Modifier.padding(horizontal = 24.dp, vertical = 7.dp), color = Ink) }
-            item { Text("Recipe data by TheMealDB", Modifier.padding(22.dp), color = Ink.copy(alpha = .55f), fontSize = 12.sp) }
+            item { Text("Comments  ·  ${comments.size}", Modifier.padding(start = 22.dp, top = 22.dp, bottom = 8.dp), color = Ink, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Serif, fontSize = 22.sp) }
+            if (comments.isEmpty()) item { Text("No comments yet. Start the conversation!", Modifier.padding(horizontal = 22.dp, vertical = 8.dp), color = Ink.copy(alpha = .7f)) }
+            items(comments, key = { it.id }) { comment ->
+                CommentThread(comment, onReply = { replyTarget = comment }, onReport = { reportTarget = "comment" to it })
+            }
+            if (nextCommentsPage != null) item {
+                TextButton(onClick = {
+                    val nextPage = nextCommentsPage ?: return@TextButton
+                    if (!interactionBusy) scope.launch {
+                        interactionBusy = true
+                        try {
+                            val page = api(nextPage, token)
+                            comments = comments + parseComments(page.optJSONArray("results") ?: JSONArray())
+                            nextCommentsPage = page.optString("next").takeIf { it.startsWith("http") }
+                        } catch (error: Exception) { interactionMessage = error.message ?: "Could not load more comments." }
+                        finally { interactionBusy = false }
+                    }
+                }, enabled = !interactionBusy, modifier = Modifier.fillMaxWidth()) { Text(if (interactionBusy) "Loading comments…" else "Load more comments", color = Tomato) }
+            }
+            item {
+                Column(Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    if (replyTarget != null) Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("Replying to ${replyTarget?.author}", Modifier.weight(1f), color = Tomato, fontSize = 13.sp)
+                        TextButton(onClick = { replyTarget = null }) { Text("Cancel", color = Ink) }
+                    }
+                    OutlinedTextField(commentText, { commentText = it }, Modifier.fillMaxWidth(), label = { Text(if (replyTarget == null) "Add a comment" else "Write a reply") }, minLines = 2, maxLines = 5, shape = RoundedCornerShape(16.dp))
+                    Button(onClick = {
+                        val message = commentText.trim()
+                        if (message.isNotEmpty() && !interactionBusy) scope.launch {
+                            interactionBusy = true
+                            try {
+                                val body = JSONObject().put("text", message)
+                                replyTarget?.let { body.put("parent", it.id) }
+                                val created = api("recipes/${meal.id}/comments/", token, body)
+                                val parsed = parseComment(created)
+                                val parent = replyTarget
+                                comments = if (parent == null) comments + parsed else comments.map { root -> if (root.id == parent.id) root.copy(replies = root.replies + parsed) else root }
+                                commentText = ""; replyTarget = null; interactionMessage = "Comment posted."
+                            } catch (error: Exception) { interactionMessage = error.message ?: "Could not post your comment." }
+                            finally { interactionBusy = false }
+                        }
+                    }, enabled = commentText.isNotBlank() && !interactionBusy, modifier = Modifier.align(Alignment.End), colors = ButtonDefaults.buttonColors(containerColor = Tomato)) { Text("Post") }
+                    if (interactionMessage.isNotBlank()) Text(interactionMessage, color = if (interactionMessage.contains("could not", true)) MaterialTheme.colorScheme.error else Basil, fontSize = 13.sp)
+                }
+            }
         }
         Button(onClick = onCook, modifier = Modifier.fillMaxWidth().padding(18.dp).height(54.dp), shape = RoundedCornerShape(18.dp), colors = ButtonDefaults.buttonColors(containerColor = Tomato)) { Text("Start cooking  →", fontWeight = FontWeight.Bold) }
+    }
+    if (reportTarget != null) AlertDialog(
+        onDismissRequest = { reportTarget = null },
+        title = { Text("Report content") },
+        text = { Column {
+            listOf("inappropriate" to "Inappropriate", "spam" to "Spam", "misinformation" to "Incorrect or unsafe", "copyright" to "Copyright concern", "other" to "Other").forEach { (key, label) ->
+                Row(Modifier.fillMaxWidth().clickable { reportReason = key }, verticalAlignment = Alignment.CenterVertically) { RadioButton(selected = reportReason == key, onClick = { reportReason = key }); Text(label) }
+            }
+            OutlinedTextField(reportDetails, { reportDetails = it.take(500) }, label = { Text("Details (optional)") }, maxLines = 3)
+        } },
+        confirmButton = { TextButton(onClick = { reportTarget?.let { report(it.first, it.second, reportReason, reportDetails) } }) { Text("Send report", color = Tomato) } },
+        dismissButton = { TextButton(onClick = { reportTarget = null }) { Text("Cancel") } },
+    )
+}
+
+@Composable
+private fun CommentThread(comment: RecipeComment, onReply: () -> Unit, onReport: (Int) -> Unit, nested: Boolean = false) {
+    Column(Modifier.fillMaxWidth().padding(start = if (nested) 40.dp else 18.dp, end = 18.dp, top = 5.dp, bottom = 5.dp)) {
+        Surface(shape = RoundedCornerShape(18.dp), color = if (nested) Color(0xFFEFE6FF) else Color(0xFFFFFCFA), shadowElevation = 2.dp) {
+            Column(Modifier.fillMaxWidth().padding(14.dp)) {
+                Text(comment.author, color = Tomato, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                Spacer(Modifier.height(5.dp))
+                Text(comment.text, color = Ink)
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    TextButton(onClick = onReply) { Text("Reply", color = Basil, fontSize = 12.sp) }
+                    TextButton(onClick = { onReport(comment.id) }) { Text("Report", color = Ink.copy(alpha = .65f), fontSize = 12.sp) }
+                }
+            }
+        }
+        comment.replies.forEach { reply -> CommentThread(reply, onReply = onReply, onReport = onReport, nested = true) }
     }
 }
 
@@ -607,6 +826,37 @@ private suspend fun api(path: String, token: String? = null, body: JSONObject? =
     if (text.isBlank()) JSONObject() else JSONObject(text)
 }
 
+private suspend fun uploadRecipe(
+    context: android.content.Context, token: String, title: String, ingredients: List<String>, steps: List<String>,
+    category: String, area: String, image: Uri,
+): JSONObject = withContext(Dispatchers.IO) {
+    val mime = context.contentResolver.getType(image) ?: "image/jpeg"
+    require(mime.startsWith("image/")) { "Choose an image file." }
+    val bytes = ByteArrayOutputStream().use { output ->
+        val buffer = ByteArray(16 * 1024)
+        var total = 0
+        context.contentResolver.openInputStream(image)?.use { input ->
+            while (true) {
+                val read = input.read(buffer)
+                if (read < 0) break
+                total += read
+                require(total <= 8 * 1024 * 1024) { "The recipe photo must be 8 MB or smaller." }
+                output.write(buffer, 0, read)
+            }
+        } ?: error("Could not open the selected photo.")
+        output.toByteArray()
+    }
+    val body = MultipartBody.Builder().setType(MultipartBody.FORM)
+        .addFormDataPart("title", title)
+        .addFormDataPart("ingredients", JSONArray().apply { ingredients.forEach { put(JSONObject().put("name", it).put("measure", "")) } }.toString())
+        .addFormDataPart("steps", JSONArray().apply { steps.forEach { put(it) } }.toString())
+        .addFormDataPart("category", category)
+        .addFormDataPart("area", area)
+        .addFormDataPart("image", "recipe-upload", bytes.toRequestBody(mime.toMediaType()))
+        .build()
+    JSONObject(simmerMultipartRequest("recipes/create/", token, body))
+}
+
 private suspend fun getGoogleIdToken(activity: Activity): String {
     val option = GetSignInWithGoogleOption.Builder(BuildConfig.GOOGLE_WEB_CLIENT_ID)
         .build()
@@ -625,6 +875,12 @@ private fun parseAreas(array: JSONArray) = (0 until array.length()).map { i -> a
 private fun parseMeals(array: JSONArray) = (0 until array.length()).map { i -> array.getJSONObject(i).let { obj ->
     val ingredients = obj.optJSONArray("ingredients") ?: JSONArray()
     val steps = obj.optJSONArray("steps") ?: JSONArray()
-    Meal(obj.optInt("id"), obj.optString("title"), obj.optString("category"), obj.optString("area").takeIf(String::isNotBlank), obj.optString("image").ifBlank { obj.optString("thumbnail") },
-        (0 until steps.length()).map { steps.optString(it) }, (0 until ingredients.length()).map { j -> ingredients.getJSONObject(j).let { listOf(it.optString("measure"), it.optString("name")).filter(String::isNotBlank).joinToString(" ") } }, obj.optString("youtube_url"))
+    Meal(obj.optInt("id"), obj.optString("title"), obj.optString("category"), obj.optString("area").takeIf { it.isNotBlank() && it != "null" }, obj.optString("image").ifBlank { obj.optString("thumbnail") },
+        (0 until steps.length()).map { steps.optString(it) }, (0 until ingredients.length()).map { j -> ingredients.getJSONObject(j).let { listOf(it.optString("measure"), it.optString("name")).filter(String::isNotBlank).joinToString(" ") } },
+        obj.optString("youtube_url"), author = obj.optString("author_name").ifBlank { "TheMealDB" }, likes = obj.optInt("likes_count"), dislikes = obj.optInt("dislikes_count"), myVote = obj.optInt("my_vote"))
 } }
+private fun parseComments(array: JSONArray) = (0 until array.length()).map { parseComment(array.getJSONObject(it)) }
+private fun parseComment(obj: JSONObject): RecipeComment {
+    val replies = obj.optJSONArray("replies") ?: JSONArray()
+    return RecipeComment(obj.optInt("id"), obj.optString("author_name").ifBlank { "Simmer cook" }, obj.optString("text"), parseComments(replies))
+}

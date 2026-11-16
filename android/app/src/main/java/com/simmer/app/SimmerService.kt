@@ -28,12 +28,19 @@ private val simmerEndpoints: SimmerEndpoints by lazy {
 }
 
 /** Retrofit transport shared by auth and recipe screens. */
-suspend fun simmerRequest(path: String, token: String?, body: JSONObject?, method: String): String {
+suspend fun simmerRequest(path: String, token: String?, body: JSONObject?, method: String): String =
+    simmerRequestBody(path, token, body?.toString()?.toRequestBody("application/json".toMediaType()), method)
+
+/** Multipart transport for authenticated recipe-photo uploads. */
+suspend fun simmerMultipartRequest(path: String, token: String?, body: RequestBody): String =
+    simmerRequestBody(path, token, body, "POST")
+
+private suspend fun simmerRequestBody(path: String, token: String?, body: RequestBody?, method: String): String {
     val auth = token?.let { "Bearer $it" }
     return try {
         when (method) {
-            "DELETE" -> simmerEndpoints.delete(path, body?.toString()?.toRequestBody("application/json".toMediaType()), auth)?.string().orEmpty()
-            "POST" -> simmerEndpoints.post(path, (body?.toString() ?: "{}").toRequestBody("application/json".toMediaType()), auth).string()
+            "DELETE" -> simmerEndpoints.delete(path, body, auth)?.string().orEmpty()
+            "POST" -> simmerEndpoints.post(path, body ?: "{}".toRequestBody("application/json".toMediaType()), auth).string()
             else -> simmerEndpoints.get(path, auth).string()
         }
     } catch (error: HttpException) {
@@ -44,7 +51,7 @@ suspend fun simmerRequest(path: String, token: String?, body: JSONObject?, metho
             val access = json.optString("access").takeIf(String::isNotBlank)
             if (access != null) {
                 AppSessionRefresh.onRefreshed(access, json.optString("refresh").takeIf(String::isNotBlank))
-                return simmerRequest(path, access, body, method)
+                return simmerRequestBody(path, access, body, method)
             }
         }
         val errorJson = runCatching { JSONObject(responseText) }.getOrNull()

@@ -23,6 +23,7 @@ def legal_page(title, body):
 def privacy(_request):
     return legal_page("Privacy policy", """
       <p>Simmer stores your email address, display name, account security data and saved recipes to provide account and recipe features. Recipe searches are sent to the Simmer API. Passwords are stored as salted hashes. The service is hosted on a VPS operated for Simmer.</p>
+      <p>If you publish a recipe, its photo, ingredients, steps and display name are visible to other users. Comments, replies and recipe ratings are also public. We store reports so moderators can review content. Deleting your account removes your published recipes, comments, votes and saved recipes.</p>
       <p>Account information is shared with the email delivery provider only to send verification and account recovery messages. Advertising services are not active in this build. If ads are enabled later, this policy and the in-app consent flow will be updated before release.</p>
       <p>You can request account deletion in the app or use the <a href="/account-deletion/">account deletion page</a>. Deletion removes your account and associated favorites, subject to legally required backups and retention.</p>""")
 
@@ -30,6 +31,7 @@ def terms(_request):
     return legal_page("Terms of use", """
       <p>Simmer provides recipe information for general cooking guidance. Check ingredient labels, allergens, temperatures and food safety requirements for your circumstances. Recipe content is attributed to its source where applicable.</p>
       <p>Keep your account credentials private. Do not abuse, disrupt or attempt to gain unauthorized access to the service. Simmer may change or suspend features to maintain the service.</p>
+      <p>Only publish recipes and photos you have the right to share. Do not post unlawful, abusive, misleading or unsafe content. Users can report recipes and comments; Simmer may remove content that violates these rules.</p>
       <p>These draft terms must be reviewed and completed before public release, including operator identity, governing law, liability and dispute contact information.</p>""")
 
 def account_deletion(_request):
