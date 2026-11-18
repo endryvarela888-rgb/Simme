@@ -30,16 +30,31 @@ val googleSignInConfigured = googleWebClientIdInput.endsWith(".apps.googleuserco
 val googleWebClientId = (if (googleSignInConfigured) googleWebClientIdInput else "REPLACE_WITH_GOOGLE_WEB_CLIENT_ID")
     .replace("\\", "\\\\")
     .replace("\"", "\\\"")
+val uploadStoreFile = providers.environmentVariable("SIMMER_UPLOAD_KEYSTORE_PATH").orNull.orEmpty()
+val uploadStorePassword = providers.environmentVariable("SIMMER_UPLOAD_STORE_PASSWORD").orNull.orEmpty()
+val uploadKeyAlias = providers.environmentVariable("SIMMER_UPLOAD_KEY_ALIAS").orNull.orEmpty()
+val uploadKeyPassword = providers.environmentVariable("SIMMER_UPLOAD_KEY_PASSWORD").orNull.orEmpty()
+val releaseSigningConfigured = listOf(uploadStoreFile, uploadStorePassword, uploadKeyAlias, uploadKeyPassword).all(String::isNotBlank)
 
 android {
     namespace = "com.simmer.app"
     compileSdk = 36
+    signingConfigs {
+        create("release") {
+            if (releaseSigningConfigured) {
+                storeFile = file(uploadStoreFile)
+                storePassword = uploadStorePassword
+                keyAlias = uploadKeyAlias
+                keyPassword = uploadKeyPassword
+            }
+        }
+    }
     defaultConfig {
         applicationId = "com.simmer.app"
         minSdk = 26
         targetSdk = 36
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = providers.gradleProperty("releaseVersionCode").orElse("1").get().toInt()
+        versionName = providers.gradleProperty("releaseVersionName").orElse("0.1.0").get()
     }
     buildTypes {
         debug {
@@ -53,6 +68,7 @@ android {
             manifestPlaceholders["admobAppId"] = testAdmobAppId
         }
         release {
+            if (releaseSigningConfigured) signingConfig = signingConfigs.getByName("release")
             buildConfigField("String", "API_BASE_URL", "\"$releaseApiBaseUrl\"")
             buildConfigField("String", "ADMOB_APP_ID", "\"$admobAppId\"")
             buildConfigField("String", "ADMOB_INTERSTITIAL_ID", "\"$admobInterstitialId\"")
@@ -76,6 +92,7 @@ dependencies {
     implementation("androidx.core:core-ktx:1.17.0")
     implementation("androidx.activity:activity-compose:1.12.0")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.10.0")
+    implementation("androidx.lifecycle:lifecycle-runtime-compose:2.10.0")
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.10.0")
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.ui:ui-tooling-preview")
@@ -95,5 +112,18 @@ dependencies {
     implementation("com.google.android.libraries.identity.googleid:googleid:1.1.1")
     implementation("io.coil-kt:coil-compose:2.7.0")
     implementation("androidx.security:security-crypto:1.1.0")
+    implementation("com.android.billingclient:billing-ktx:9.1.0")
     debugImplementation("androidx.compose.ui:ui-tooling")
+}
+
+val validateReleaseSigning = tasks.register("validateReleaseSigning") {
+    doLast {
+        check(releaseSigningConfigured) {
+            "Release signing is not configured. Set the SIMMER_UPLOAD_* environment variables before building a Play Store bundle."
+        }
+    }
+}
+
+tasks.configureEach {
+    if (name == "bundleRelease" || name == "assembleRelease") dependsOn(validateReleaseSigning)
 }

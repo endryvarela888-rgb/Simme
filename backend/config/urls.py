@@ -22,16 +22,19 @@ def legal_page(title, body):
 
 def privacy(_request):
     return legal_page("Privacy policy", """
-      <p>Simmer stores your email address, display name, optional profile photo, account security data and saved recipes to provide account and recipe features. Recipe searches are sent to the Simmer API. Passwords are stored as salted hashes. The service is hosted on a VPS operated for Simmer.</p>
-      <p>If you publish a recipe, its photo, ingredients, steps and display name are visible to other users. Your optional profile photo is shown next to your comments and replies. Comments, replies and recipe ratings are also public. We store reports so moderators can review content. Deleting your account removes your published recipes, comments, votes, avatar and saved recipes.</p>
-      <p>Account information is shared with the email delivery provider only to send verification and account recovery messages. Advertising services are not active in this build. If ads are enabled later, this policy and the in-app consent flow will be updated before release.</p>
-      <p>You can request account deletion in the app or use the <a href="/account-deletion/">account deletion page</a>. Deletion removes your account and associated favorites, subject to legally required backups and retention.</p>""")
+      <p>Simmer processes your email address, display name, optional profile photo, account security data, saved recipes, votes, comments, chat messages, coin balance and purchase/subscription verification records to provide the app. Passwords are stored as salted hashes. Recipe and account requests are processed by Simmer's API hosted on a VPS.</p>
+      <p>If you publish a recipe, its photo, ingredients, steps and display name are visible to other users. Your optional profile photo appears with your comments and replies. Comments, replies and recipe ratings are public. Users can report recipes, comments, accounts and AI answers, and block accounts; moderation reports and the reported content may be retained for review.</p>
+      <p>When you use Chef AI, your question and relevant recipe context are sent to the AI service provider configured by Simmer (currently OpenAI) to generate a reply. Chat history is available in the app for three days. Do not include sensitive personal information. AI messages may be inaccurate; check allergens and food safety.</p>
+      <p>When you buy coins or a subscription, Google Play processes the payment. Simmer receives purchase verification information, such as product identifiers and purchase tokens, to validate the transaction and grant its benefits; Simmer does not receive your full payment card details. Email addresses are shared with the email delivery provider to send verification and account recovery messages.</p>
+      <p>When advertising is enabled, the mobile advertising SDK may process device and ad interaction data under your consent choices and the provider's terms. You can review available consent settings in the app's Privacy choices control when it is shown.</p>
+      <p>You can request account deletion in the app or use the <a href="/account-deletion/">account deletion page</a>. Deletion removes account-associated data, subject to records that must be retained for security, purchase accounting or legal obligations. Chat history is retained for three days; moderation reports may retain a copy of reported content as described above.</p>""")
 
 def terms(_request):
     return legal_page("Terms of use", """
       <p>Simmer provides recipe information for general cooking guidance. Check ingredient labels, allergens, temperatures and food safety requirements for your circumstances. Recipe content is attributed to its source where applicable.</p>
       <p>Keep your account credentials private. Do not abuse, disrupt or attempt to gain unauthorized access to the service. Simmer may change or suspend features to maintain the service.</p>
-      <p>Only publish recipes and photos you have the right to share. Do not post unlawful, abusive, misleading or unsafe content. Users can report recipes and comments; Simmer may remove content that violates these rules.</p>
+      <p>Before publishing a recipe or comment, you must accept these rules. Only publish recipes and photos you have the right to share. Do not post unlawful, abusive, harassing, hateful, spam, misleading or unsafe content. Users can report recipes, comments and accounts, and block accounts to hide their recipes and comments. Simmer reviews reports and may remove content or restrict accounts that violate these rules.</p>
+      <p>Chef AI is an automated cooking assistant and can make mistakes. Verify food safety, allergens and cooking temperatures independently. Do not use it for medical, emergency or non-cooking advice. You can report an offensive or unsafe AI response from within the chat.</p>
       <p>These draft terms must be reviewed and completed before public release, including operator identity, governing law, liability and dispute contact information.</p>""")
 
 def account_deletion(_request):
@@ -43,6 +46,7 @@ def account_deletion(_request):
 
 urlpatterns = [path("admin/", admin.site.urls), path("api/v1/health/", health),
     path("api/v1/auth/", include("apps.accounts.urls")), path("api/v1/", include("apps.recipes.urls")),
+    path("api/v1/coins/", include("apps.coins.urls")), path("api/v1/chef/", include("apps.chef.urls")),
     path("privacy/", privacy), path("terms/", terms), path("account-deletion/", account_deletion)]
 if settings.DEBUG:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

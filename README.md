@@ -4,9 +4,11 @@ Simmer es una app Android de recetas que requiere iniciar sesión. La app consul
 
 ## Estado
 
-Base funcional desplegada: backend Django/DRF y PostgreSQL en Docker, 790 recetas importadas (757 publicadas tras la revisión de pasos), y API detrás de Caddy/HTTPS en `https://simmer-api.duckdns.org/api/v1/health/`. El cliente Android Compose incluye búsqueda, filtros, paginación, favoritos, detalle, modo cocinar, verificación de email, recuperación y borrado de cuenta. Las variantes debug y release apuntan por defecto a la API HTTPS de Simmer.
+Base funcional desplegada: backend Django/DRF y PostgreSQL en Docker, con API detrás de Caddy/HTTPS en `https://simmer-api.duckdns.org/api/v1/health/`. El cliente Android Compose incluye búsqueda, filtros, paginación, favoritos, detalle, modo cocinar, cuentas, recetas comunitarias, comentarios, votos y borrado de cuenta.
 
-La API de producción aún debe recibir esta última versión del backend. El registro por email permanecerá desactivado hasta configurar SMTP. Google Sign-In, los anuncios reales, CI/CD automático, pruebas manuales en dispositivo y publicación requieren los datos/cuentas externos listados en [docs/SETUP-EXTERNAL-ACCOUNTS.md](docs/SETUP-EXTERNAL-ACCOUNTS.md). El chef IA, las monedas y las traducciones están fuera del MVP.
+El código local prepara además el monedero de monedas, verificación de pagos de Google Play, suscripciones y Chef IA con conversaciones de tres días. Estas funciones permanecen desactivadas hasta configurar Play Console, las credenciales de Google Play y la cuenta/límites del proveedor de IA. El sistema de anuncios y consentimiento está integrado, pero los anuncios de producción necesitan IDs reales y configuración legal de privacidad.
+
+La publicación todavía requiere crear y custodiar la clave de subida, cargar los secretos de publicación y generar el AAB firmado con el workflow manual, revisar y completar los textos legales, configurar la ficha y declaraciones de Play Console, confirmar los derechos de TheMealDB y realizar pruebas desde una pista de prueba. La CI normal genera el APK de depuración; el workflow de AAB firmado espera las credenciales privadas de publicación. Consulta [docs/SETUP-EXTERNAL-ACCOUNTS.md](docs/SETUP-EXTERNAL-ACCOUNTS.md) y [docs/activar-monedas-y-chef-ia.md](docs/activar-monedas-y-chef-ia.md).
 
 ## Desarrollo local
 
@@ -17,4 +19,4 @@ Requisitos: Docker Desktop arrancado; Android Studio con Android SDK y emulador;
 3. API: `http://localhost:8000/api/v1/health/`.
 4. Abrir `android/` en Android Studio, sincronizar Gradle y ejecutar en emulador.
 
-La clave pública `1` sirve para desarrollo; para publicar, TheMealDB exige una suscripción de pago y atribución. Véase `docs/THEMEALDB.md`.
+La clave pública `1` sirve para desarrollo; antes de publicar, confirma la licencia comercial y atribución vigentes de TheMealDB en `docs/THEMEALDB.md`.

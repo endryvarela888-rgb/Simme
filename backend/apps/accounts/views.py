@@ -5,6 +5,7 @@ from django.conf import settings
 from django.contrib.auth.hashers import check_password, make_password
 from django.core.mail import send_mail
 from django.db import IntegrityError, transaction
+from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from google.auth.transport import requests as google_requests
 from google.oauth2 import id_token as google_id_token
@@ -16,7 +17,7 @@ from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenBlacklistView
 
-from .models import EmailCode, User
+from .models import EmailCode, User, UserBlock, UserReport
 from .serializers import EmailAddressSerializer, EmailCodeSerializer, PasswordResetSerializer, RegisterSerializer
 
 CODE_LIFETIME = timedelta(minutes=15)
@@ -256,7 +257,8 @@ class MeView(generics.GenericAPIView):
         user = request.user
         avatar = request.build_absolute_uri(user.avatar.url) if user.avatar else ""
         return {"id": user.id, "email": user.email, "display_name": user.display_name,
-                "email_verified": user.email_verified, "avatar": avatar}
+                "email_verified": user.email_verified, "avatar": avatar,
+                "ugc_terms_accepted": user.ugc_terms_accepted_at is not None}
 
     def get(self, request):
         return Response(self.profile_data(request))
@@ -294,3 +296,55 @@ class MeView(generics.GenericAPIView):
 
 class LogoutView(TokenBlacklistView):
     permission_classes = [permissions.IsAuthenticated]
+
+
+class UGCBlockListView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        rows = UserBlock.objects.filter(blocker=request.user).select_related("blocked").order_by("blocked__display_name", "blocked__email")
+        return Response({"results": [{"id": row.blocked_id, "display_name": row.blocked.display_name or row.blocked.email} for row in rows]})
+
+
+class UGCBlockView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request, pk):
+        target = get_object_or_404(User, pk=pk, is_active=True)
+        if target.pk == request.user.pk:
+            return Response({"detail": "You cannot block your own account."}, status=status.HTTP_400_BAD_REQUEST)
+        UserBlock.objects.get_or_create(blocker=request.user, blocked=target)
+        return Response({"detail": "This cook is blocked. Their recipes and comments are hidden from you."}, status=status.HTTP_200_OK)
+
+    def delete(self, request, pk):
+        UserBlock.objects.filter(blocker=request.user, blocked_id=pk).delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class UGCUserReportView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "report_write"
+
+    def post(self, request, pk):
+        target = get_object_or_404(User, pk=pk, is_active=True)
+        if target.pk == request.user.pk:
+            return Response({"detail": "You cannot report your own account."}, status=status.HTTP_400_BAD_REQUEST)
+        reason = str(request.data.get("reason", "inappropriate"))[:40]
+        allowed = {"inappropriate", "spam", "harassment", "other"}
+        if reason not in allowed:
+            return Response({"detail": "Choose a valid report reason."}, status=status.HTTP_400_BAD_REQUEST)
+        details = str(request.data.get("details", ""))[:500].strip()
+        report, created = UserReport.objects.get_or_create(
+            reporter=request.user, target=target, defaults={"reason": reason, "details": details},
+        )
+        return Response({"detail": "Thanks. This account was sent to the moderation queue."}, status=status.HTTP_201_CREATED if created else status.HTTP_200_OK)
+
+
+class UGCTermsAcceptanceView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        request.user.ugc_terms_accepted_at = timezone.now()
+        request.user.save(update_fields=("ugc_terms_accepted_at",))
+        return Response({"accepted": True})

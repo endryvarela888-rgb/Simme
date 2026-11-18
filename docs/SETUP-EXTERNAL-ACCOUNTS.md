@@ -43,7 +43,7 @@ En AdMob crea/registra la app Android con paquete `com.simmer.app`, crea un bloq
 - ID del bloque intersticial (formato `ca-app-pub-…/…`).
 - Política de privacidad revisada y datos de contacto definitivos antes de enviar a Play.
 
-Compilación release una vez configurado: `./gradlew bundleRelease -PsimmerAdmobAppId=<APP_ID> -PsimmerAdmobInterstitialId=<INTERSTITIAL_ID> -PsimmerGoogleWebClientId=<WEB_CLIENT_ID>`.
+El AAB release se genera desde el workflow manual descrito en la sección 5. Este genera el bundle firmado y no expone el keystore en el repositorio.
 
 El valor remoto del intervalo está en el entorno del VPS: `SIMMER_AD_INTERVAL=5`. El contador local persiste en DataStore; si el anuncio no está listo, no bloquea la navegación y la oportunidad queda pendiente para el siguiente cambio de pantalla.
 
@@ -71,6 +71,58 @@ La configuración habilita el despliegue al hacer push de cambios de backend o d
 - Comprar/confirmar la licencia de TheMealDB necesaria para publicar y conservar su atribución; ver `THEMEALDB.md`.
 - Completar y revisar privacidad/términos y datos de contacto. Los textos servidos actualmente son borradores, no documentos legales finales.
 - Crear la ficha, capturas, declaraciones de datos/anuncios y completar la pista de pruebas que exija Play al tipo de cuenta.
+- La CI normal genera un APK de depuración. El workflow manual `.github/workflows/android-release.yml` genera el AAB de lanzamiento cuando se configuren las credenciales de firma y los IDs reales.
+- Revisar privacidad y términos para reflejar los anuncios reales, los mensajes enviados al proveedor de IA, la conservación de chats durante tres días y las monedas/suscripciones.
+- El chat IA muestra **Report this response** y guarda los reportes en el panel de administración; define quién revisará esa cola antes de habilitarlo al público. Google Play exige que el usuario pueda reportar contenido ofensivo generado por IA dentro de la app.
+- Comprueba que eliminar cuenta está disponible tanto dentro de la app como desde una página pública y completa la sección de eliminación de datos en Play Console.
+
+### Secretos para generar el AAB firmado
+
+En **Settings → Secrets and variables → Actions → Secrets**, añadir:
+
+- `ANDROID_UPLOAD_KEYSTORE_BASE64`
+- `ANDROID_UPLOAD_KEY_ALIAS`
+- `ANDROID_UPLOAD_KEY_PASSWORD`
+- `ANDROID_UPLOAD_STORE_PASSWORD`
+- `SIMMER_GOOGLE_WEB_CLIENT_ID`
+- `SIMMER_ADMOB_APP_ID`
+- `SIMMER_ADMOB_INTERSTITIAL_ID`
+
+La clave de subida debe tener una copia segura fuera de GitHub y nunca subirse al repositorio. Cuando los secretos estén configurados y los cambios estén en `main`, ejecutar **Actions → Build Simmer release bundle → Run workflow**. Indicar un nombre de versión y un `version_code` superior al último publicado; descargar el AAB firmado desde los artefactos del workflow y subirlo a la pista interna de Play Console.
+
+#### Crear la clave de subida desde Windows
+
+1. Instala Android Studio o el JDK de Java 17 si todavía no tienes `keytool`. Crea una carpeta privada fuera del proyecto, por ejemplo `C:\Users\TU_USUARIO\simmer-signing`.
+2. En PowerShell, crea el archivo de firma. `keytool` te pedirá contraseñas; guárdalas en un gestor seguro. No envíes la clave ni sus contraseñas por chat.
+
+   ```powershell
+   New-Item -ItemType Directory -Force "$env:USERPROFILE\simmer-signing"
+   keytool -genkeypair -v -keystore "$env:USERPROFILE\simmer-signing\upload-key.jks" -alias simmer-upload -keyalg RSA -keysize 2048 -validity 10000
+   ```
+
+3. Conserva copias cifradas de `upload-key.jks`, el alias (`simmer-upload`) y ambas contraseñas. Si pierdes esta clave, no podrás firmar actualizaciones con ella.
+4. Convierte el archivo a Base64 en memoria y copia el resultado al portapapeles para pegarlo directamente en GitHub:
+
+   ```powershell
+   $jksBytes = [System.IO.File]::ReadAllBytes("$env:USERPROFILE\simmer-signing\upload-key.jks")
+   $keystoreBase64 = [Convert]::ToBase64String($jksBytes)
+   Set-Clipboard $keystoreBase64
+   ```
+
+5. En el repositorio, abre **Settings → Secrets and variables → Actions → New repository secret**. Crea `ANDROID_UPLOAD_KEYSTORE_BASE64` y pega el texto copiado. Repite para `ANDROID_UPLOAD_KEY_ALIAS` (`simmer-upload`), `ANDROID_UPLOAD_KEY_PASSWORD` y `ANDROID_UPLOAD_STORE_PASSWORD`.
+6. Añade también los secretos de Google/AdMob de la lista. El workflow solo crea el AAB; después se sube a Play Console. Si activas Play App Signing, Play conserva la clave de distribución y esta clave funciona como clave de subida.
+
+No reutilices una contraseña de Gmail ni una clave ya incluida en el proyecto. Guarda el archivo JKS fuera de OneDrive/repositorios y con una copia de respaldo protegida.
+
+## 6. Chef IA, monedas y suscripciones
+
+La implementación ya existe en Android y Django, pero se mantiene cerrada hasta que el propietario configure las cuentas externas. Pasos e IDs exactos: `docs/activar-monedas-y-chef-ia.md`.
+
+- La clave de API, modelo, tarifas actuales y límite mensual del proveedor de IA van en `/opt/simmer/shared/.env`; no en el APK ni en el repositorio.
+- Las compras requieren los productos de Play Console, el perfil de pagos, una cuenta de servicio con permisos mínimos para consultar compras y el JSON privado en el entorno del VPS.
+- `GOOGLE_PLAY_PRODUCTS_ENABLED` debe seguir en `false` hasta que la verificación del servidor esté preparada y los productos estén activos.
+- Probar compras, renovaciones, recompensas diarias y recibos desde la pista interna con testers autorizados antes de abrir la tienda.
+- No habilitar Chef IA hasta que la clave, el modelo y las tarifas reales estén configurados, junto con límites de gasto tanto en el proveedor como en Simmer.
 
 ## Estado del código
 
@@ -78,4 +130,4 @@ La configuración habilita el despliegue al hacer push de cambios de backend o d
 - Email verification, recuperación, borrado, Google sign-in, UMP e intersticial están implementados con placeholders o IDs de prueba.
 - El backend nuevo está desplegado en el VPS; el registro por email y la autenticación SMTP ya se comprobaron.
 - Google Sign-In espera los OAuth Client IDs del propietario; los anuncios reales permanecen desactivados hasta configurar AdMob.
-- Chef IA, monedas/Play Billing e i18n quedan fuera del MVP.
+- Chef IA, monedas/Play Billing y recompensas de suscripción están implementados en el código local, pero aún requieren las cuentas y pruebas descritas arriba. i18n sigue pendiente.

@@ -12,7 +12,7 @@ CSRF_TRUSTED_ORIGINS = env.list("DJANGO_CSRF_TRUSTED_ORIGINS", default=[])
 INSTALLED_APPS = [
     "django.contrib.admin", "django.contrib.auth", "django.contrib.contenttypes", "django.contrib.sessions",
     "django.contrib.messages", "django.contrib.staticfiles", "rest_framework", "django_filters",
-    "rest_framework_simplejwt.token_blacklist", "apps.accounts", "apps.recipes",
+    "rest_framework_simplejwt.token_blacklist", "apps.accounts", "apps.recipes", "apps.coins", "apps.chef",
 ]
 MIDDLEWARE = ["django.middleware.security.SecurityMiddleware", "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware", "django.middleware.csrf.CsrfViewMiddleware",
@@ -51,13 +51,38 @@ SIMMER_CONTACT_EMAIL = env("SIMMER_CONTACT_EMAIL", default="replace-with-support
 GOOGLE_OAUTH_CLIENT_IDS = env.list("GOOGLE_OAUTH_CLIENT_IDS", default=[])
 SIMMER_ADS_ENABLED = env.bool("SIMMER_ADS_ENABLED", default=DEBUG)
 SIMMER_AD_INTERVAL = env.int("SIMMER_AD_INTERVAL", default=5)
+AI_PROVIDER = env("AI_PROVIDER", default="openai")
+AI_API_KEY = env("AI_API_KEY", default="")
+AI_MODEL = env("AI_MODEL", default="")
+AI_API_BASE_URL = env("AI_API_BASE_URL", default="https://api.openai.com/v1")
+AI_MAX_OUTPUT_TOKENS = env.int("AI_MAX_OUTPUT_TOKENS", default=2000)
+AI_MAX_DAILY_MESSAGES = env.int("AI_MAX_DAILY_MESSAGES", default=50)
+AI_MONTHLY_BUDGET_USD = env.float("AI_MONTHLY_BUDGET_USD", default=0.0)
+AI_INPUT_PRICE_PER_MILLION_USD = env.float("AI_INPUT_PRICE_PER_MILLION_USD", default=0.0)
+AI_OUTPUT_PRICE_PER_MILLION_USD = env.float("AI_OUTPUT_PRICE_PER_MILLION_USD", default=0.0)
+GOOGLE_PLAY_PACKAGE_NAME = env("GOOGLE_PLAY_PACKAGE_NAME", default="com.simmer.app")
+GOOGLE_PLAY_SERVICE_ACCOUNT_JSON = env("GOOGLE_PLAY_SERVICE_ACCOUNT_JSON", default="")
+GOOGLE_PLAY_PRODUCTS_ENABLED = env.bool("GOOGLE_PLAY_PRODUCTS_ENABLED", default=False)
+SIMMER_REWARD_TIME_ZONE = env("SIMMER_REWARD_TIME_ZONE", default="America/Sao_Paulo")
+SIMMER_COIN_PRODUCTS = [
+    {"product_id": "coins_098", "coins": 20, "price_usd": "0.98"},
+    {"product_id": "coins_199", "coins": 45, "price_usd": "1.99"},
+    {"product_id": "coins_399", "coins": 100, "price_usd": "3.99"},
+    {"product_id": "coins_999", "coins": 260, "price_usd": "9.99"},
+    {"product_id": "coins_1999", "coins": 550, "price_usd": "19.99"},
+]
+SIMMER_SUBSCRIPTION_PRODUCTS = [
+    {"product_id": "simmer_basic_monthly", "tier": "basic", "price_usd": "1.98", "daily_coins": 0, "renewal_bonus": 0},
+    {"product_id": "simmer_premium_monthly", "tier": "premium", "price_usd": "5.99", "daily_coins": 10, "renewal_bonus": 0},
+    {"product_id": "simmer_chef_elite_monthly", "tier": "chef_elite", "price_usd": "11.99", "daily_coins": 20, "renewal_bonus": 100},
+]
 REST_FRAMEWORK = {"DEFAULT_AUTHENTICATION_CLASSES": ["rest_framework_simplejwt.authentication.JWTAuthentication"],
     "DEFAULT_PERMISSION_CLASSES": ["rest_framework.permissions.AllowAny"],
     "DEFAULT_FILTER_BACKENDS": ["django_filters.rest_framework.DjangoFilterBackend", "rest_framework.filters.SearchFilter", "rest_framework.filters.OrderingFilter"],
     "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination", "PAGE_SIZE": 20,
     "DEFAULT_THROTTLE_CLASSES": ["rest_framework.throttling.ScopedRateThrottle"],
     "DEFAULT_THROTTLE_RATES": {"email_code": "6/hour", "register": "5/hour", "login": "10/minute",
-        "recipe_create": "10/day", "recipe_vote": "120/hour", "comment_write": "30/hour", "report_write": "10/hour"}}
+        "recipe_create": "10/day", "recipe_vote": "120/hour", "comment_write": "30/hour", "report_write": "10/hour", "chef_message": "10/minute"}}
 SIMPLE_JWT = {"ACCESS_TOKEN_LIFETIME": timedelta(minutes=15), "REFRESH_TOKEN_LIFETIME": timedelta(days=30),
     "ROTATE_REFRESH_TOKENS": True, "BLACKLIST_AFTER_ROTATION": True}
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")

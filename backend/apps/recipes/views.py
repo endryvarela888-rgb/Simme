@@ -5,6 +5,7 @@ from rest_framework.pagination import PageNumberPagination
 from rest_framework.response import Response
 from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.views import APIView
+from apps.accounts.models import UserBlock
 from .models import Area, Category, ContentReport, Favorite, Recipe, RecipeComment, RecipeVote
 from .serializers import (AreaSerializer, CategorySerializer, ContentReportSerializer, RecipeCommentSerializer,
                           RecipeCreateSerializer, RecipeSerializer)
@@ -32,10 +33,20 @@ def recipe_queryset():
         dislikes_count=Count("votes", filter=Q(votes__value=RecipeVote.DISLIKE), distinct=True),
     )
 
+def blocked_peer_ids(user):
+    if not user or not user.is_authenticated:
+        return set()
+    pairs = UserBlock.objects.filter(Q(blocker=user) | Q(blocked=user)).values_list("blocker_id", "blocked_id")
+    return {blocked if blocker == user.id else blocker for blocker, blocked in pairs}
+
+def apply_block_filter(queryset, user):
+    blocked_ids = blocked_peer_ids(user)
+    return queryset.exclude(creator_id__in=blocked_ids) if blocked_ids else queryset
+
 class RecipeList(generics.ListAPIView):
     serializer_class = RecipeSerializer
     def get_queryset(self):
-        qs = recipe_queryset()
+        qs = apply_block_filter(recipe_queryset(), self.request.user)
         p = self.request.query_params
         if p.get("category"): qs = qs.filter(category__slug=p["category"])
         if p.get("area"): qs = qs.filter(area__slug=p["area"])
@@ -49,8 +60,8 @@ class PublicConfig(APIView):
         from django.conf import settings
         return Response({"ads_enabled": settings.SIMMER_ADS_ENABLED, "ad_interval": settings.SIMMER_AD_INTERVAL})
 class RecipeDetail(generics.RetrieveAPIView):
-    queryset = recipe_queryset()
     serializer_class = RecipeSerializer
+    def get_queryset(self): return apply_block_filter(recipe_queryset(), self.request.user)
 
 class RecipeCreate(generics.CreateAPIView):
     serializer_class = RecipeCreateSerializer
@@ -97,7 +108,14 @@ class RecipeCommentListCreate(generics.ListCreateAPIView):
         from django.shortcuts import get_object_or_404
         return get_object_or_404(Recipe, pk=self.kwargs["pk"], is_published=True)
     def get_queryset(self):
-        return RecipeComment.objects.filter(recipe=self.get_recipe(), parent__isnull=True).select_related("author").prefetch_related("replies__author").order_by("created_at")
+        hidden_ids = blocked_peer_ids(self.request.user)
+        queryset = RecipeComment.objects.filter(recipe=self.get_recipe(), parent__isnull=True).select_related("author").prefetch_related("replies__author")
+        if hidden_ids:
+            queryset = queryset.exclude(author_id__in=hidden_ids)
+        return queryset.order_by("created_at").distinct()
+
+    def perform_create(self, serializer):
+        serializer.save()
     def get_serializer_context(self):
         context = super().get_serializer_context()
         context["recipe"] = self.get_recipe()
@@ -143,7 +161,7 @@ class CommentReportView(APIView):
 class FavoriteList(generics.ListAPIView):
     permission_classes = [permissions.IsAuthenticated]
     serializer_class = RecipeSerializer
-    def get_queryset(self): return recipe_queryset().filter(favorite__user=self.request.user)
+    def get_queryset(self): return apply_block_filter(recipe_queryset(), self.request.user).filter(favorite__user=self.request.user)
     def post(self, request, *args, **kwargs):
         from django.shortcuts import get_object_or_404
         recipe = get_object_or_404(Recipe, pk=request.data.get("recipe_id"), is_published=True)

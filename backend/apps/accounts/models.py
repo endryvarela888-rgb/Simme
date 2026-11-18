@@ -28,6 +28,7 @@ class User(AbstractUser):
     auth_provider = models.CharField(max_length=12, default="email")
     google_sub = models.CharField(max_length=255, unique=True, null=True, blank=True)
     preferred_language = models.CharField(max_length=5, default="en")
+    ugc_terms_accepted_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     USERNAME_FIELD = "email"
     REQUIRED_FIELDS = []
@@ -49,3 +50,29 @@ class EmailCode(models.Model):
 
     class Meta:
         constraints = [models.UniqueConstraint(fields=("user", "purpose"), name="unique_email_code_per_purpose")]
+
+
+class UserBlock(models.Model):
+    blocker = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="blocked_users")
+    blocked = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="blocked_by_users")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=("blocker", "blocked"), name="unique_user_block")]
+
+
+class UserReport(models.Model):
+    PENDING = "pending"
+    REVIEWED = "reviewed"
+    DISMISSED = "dismissed"
+    STATUSES = [(PENDING, "Pending"), (REVIEWED, "Reviewed"), (DISMISSED, "Dismissed")]
+    reporter = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="user_reports_sent")
+    target = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="user_reports_received")
+    reason = models.CharField(max_length=40)
+    details = models.CharField(max_length=500, blank=True)
+    status = models.CharField(max_length=12, choices=STATUSES, default=PENDING)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=("reporter", "target"), name="unique_user_report")]
+        ordering = ("-created_at",)

@@ -3,6 +3,7 @@ import uuid
 from django.utils.text import slugify
 from rest_framework import serializers
 
+from apps.accounts.models import UserBlock
 from .models import Area, Category, ContentReport, Favorite, Recipe, RecipeComment, RecipeIngredient
 
 
@@ -31,6 +32,7 @@ class RecipeSerializer(serializers.ModelSerializer):
     image = serializers.SerializerMethodField()
     thumbnail = serializers.SerializerMethodField()
     author_name = serializers.SerializerMethodField()
+    author_id = serializers.IntegerField(source="creator_id", read_only=True, allow_null=True)
     likes_count = serializers.SerializerMethodField()
     dislikes_count = serializers.SerializerMethodField()
     my_vote = serializers.SerializerMethodField()
@@ -39,7 +41,7 @@ class RecipeSerializer(serializers.ModelSerializer):
     class Meta:
         model = Recipe
         fields = ("id", "title", "slug", "category", "area", "instructions", "steps", "image", "thumbnail",
-                  "tags", "youtube_url", "ingredients", "author_name", "likes_count", "dislikes_count",
+                  "tags", "youtube_url", "ingredients", "author_name", "author_id", "likes_count", "dislikes_count",
                   "my_vote", "is_favorite")
 
     def _request(self):
@@ -88,6 +90,7 @@ class RecipeCreateSerializer(serializers.Serializer):
     steps = serializers.JSONField()
     category = serializers.CharField(required=False, allow_blank=True, max_length=100)
     area = serializers.CharField(required=False, allow_blank=True, max_length=100)
+    accept_terms = serializers.BooleanField(required=False, default=False, write_only=True)
 
     def validate_image(self, image):
         if image.size > 8 * 1024 * 1024:
@@ -120,6 +123,8 @@ class RecipeCreateSerializer(serializers.Serializer):
         return steps
 
     def validate(self, attrs):
+        if not self.context["request"].user.ugc_terms_accepted_at and not attrs.get("accept_terms"):
+            raise serializers.ValidationError({"terms": "Accept Simmer's Terms of Use before publishing a recipe."})
         category_name = attrs.get("category", "").strip()
         area_name = attrs.get("area", "").strip()
         if category_name:
@@ -147,6 +152,11 @@ class RecipeCreateSerializer(serializers.Serializer):
         validated_data.pop("category", None)
         validated_data.pop("area", None)
         user = self.context["request"].user
+        accepted_terms = validated_data.pop("accept_terms", False)
+        if accepted_terms and not user.ugc_terms_accepted_at:
+            from django.utils import timezone
+            user.ugc_terms_accepted_at = timezone.now()
+            user.save(update_fields=("ugc_terms_accepted_at",))
         display_name = user.display_name.strip() or "Simmer cook"
         recipe = Recipe.objects.create(
             external_id=f"simmer-{uuid.uuid4().hex}", slug=f"{slugify(validated_data['title'])[:200]}-{uuid.uuid4().hex[:8]}",
@@ -164,12 +174,13 @@ class RecipeCreateSerializer(serializers.Serializer):
 class RecipeCommentSerializer(serializers.ModelSerializer):
     author_name = serializers.SerializerMethodField()
     author_avatar = serializers.SerializerMethodField()
+    author_id = serializers.IntegerField(read_only=True, allow_null=True)
     replies = serializers.SerializerMethodField()
     parent = serializers.PrimaryKeyRelatedField(queryset=RecipeComment.objects.all(), required=False, allow_null=True, write_only=True)
 
     class Meta:
         model = RecipeComment
-        fields = ("id", "author_name", "author_avatar", "text", "created_at", "parent", "replies")
+        fields = ("id", "author_name", "author_avatar", "author_id", "text", "created_at", "parent", "replies", "accept_terms")
         read_only_fields = ("id", "author_name", "created_at", "replies")
 
     def get_author_name(self, obj):
@@ -184,7 +195,16 @@ class RecipeCommentSerializer(serializers.ModelSerializer):
 
     def get_replies(self, obj):
         replies = obj.replies.select_related("author").order_by("created_at")
+        request = self.context.get("request")
+        if request and request.user.is_authenticated:
+            from django.db.models import Q
+            pairs = UserBlock.objects.filter(Q(blocker=request.user) | Q(blocked=request.user)).values_list("blocker_id", "blocked_id")
+            hidden = {blocked if blocker == request.user.id else blocker for blocker, blocked in pairs}
+            if hidden:
+                replies = replies.exclude(author_id__in=hidden)
         return RecipeCommentReplySerializer(replies, many=True, context=self.context).data
+
+    accept_terms = serializers.BooleanField(required=False, default=False, write_only=True)
 
     def validate_text(self, value):
         value = value.strip()
@@ -199,8 +219,19 @@ class RecipeCommentSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("Replies can be one level deep.")
         return parent
 
+    def validate(self, attrs):
+        user = self.context["request"].user
+        if not user.ugc_terms_accepted_at and not attrs.get("accept_terms"):
+            raise serializers.ValidationError({"terms": "Accept Simmer's Terms of Use before posting a comment."})
+        return attrs
+
     def create(self, validated_data):
         user = self.context["request"].user
+        accepted_terms = validated_data.pop("accept_terms", False)
+        if accepted_terms and not user.ugc_terms_accepted_at:
+            from django.utils import timezone
+            user.ugc_terms_accepted_at = timezone.now()
+            user.save(update_fields=("ugc_terms_accepted_at",))
         return RecipeComment.objects.create(
             recipe=self.context["recipe"], author=user,
             author_name=user.display_name.strip() or "Simmer cook", **validated_data,
@@ -210,10 +241,11 @@ class RecipeCommentSerializer(serializers.ModelSerializer):
 class RecipeCommentReplySerializer(serializers.ModelSerializer):
     author_name = serializers.SerializerMethodField()
     author_avatar = serializers.SerializerMethodField()
+    author_id = serializers.IntegerField(read_only=True, allow_null=True)
 
     class Meta:
         model = RecipeComment
-        fields = ("id", "author_name", "author_avatar", "text", "created_at")
+        fields = ("id", "author_name", "author_avatar", "author_id", "text", "created_at")
 
     def get_author_name(self, obj):
         return (obj.author.display_name if obj.author_id else "") or obj.author_name or "Simmer cook"
