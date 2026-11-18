@@ -38,6 +38,8 @@ El backend verifica cada compra con Google, acredita cada ficha de compra una so
 
 Antes de encender el chat, configura en el entorno privado del backend:
 
+Escribe cada variable en una línea independiente y sin barras invertidas (`\`) al final. El valor debe quedar literal; por ejemplo, `AI_MAX_OUTPUT_TOKENS=2000` (no `AI_MAX_OUTPUT_TOKENS=2000\`). Para la URL usa `https://api.openai.com/v1` sin escapar los dos puntos.
+
 - `AI_PROVIDER=openai`
 - `AI_API_KEY`: clave privada del proveedor; nunca en Android ni en el repositorio.
 - `AI_MODEL`: un modelo de API que esté habilitado en la cuenta del proveedor.
